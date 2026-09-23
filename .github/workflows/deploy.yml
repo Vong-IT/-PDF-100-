@@ -20,6 +20,9 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: |
@@ -36,26 +39,28 @@ jobs:
       - name: Build project
         run: |
           npm run build
+          # Ensure .nojekyll and 404.html are present in dist
+          touch dist/.nojekyll
+          cp dist/index.html dist/404.html
 
+      # 1. Deploy to gh-pages branch (supports "Deploy from a branch -> gh-pages")
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
+        continue-on-error: true
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           force_orphan: true
 
-      # Also support direct GitHub Actions Pages source mode if enabled in repo settings
+      # 2. Deploy directly via GitHub Actions (supports "Source: GitHub Actions")
       - name: Setup Pages
-        continue-on-error: true
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        continue-on-error: true
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
 
       - name: Deploy to GitHub Pages
-        continue-on-error: true
         id: deployment
         uses: actions/deploy-pages@v4

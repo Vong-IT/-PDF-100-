@@ -7,8 +7,9 @@ on:
       - master
   workflow_dispatch:
 
+# Permissions required for GitHub Pages and pushing to gh-pages branch
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -18,9 +19,6 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -30,22 +28,34 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: |
+          npm install --legacy-peer-deps
 
       - name: Build project
-        run: npm run build
+        run: |
+          npm run build
 
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true
+
+      # Also support direct GitHub Actions Pages source mode if enabled in repo settings
       - name: Setup Pages
+        continue-on-error: true
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
+        continue-on-error: true
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
 
       - name: Deploy to GitHub Pages
+        continue-on-error: true
         id: deployment
         uses: actions/deploy-pages@v4

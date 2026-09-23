@@ -29,21 +29,6 @@
           }
         } catch (e) {}
       })();
-
-      // Fallback for direct repository root hosting on GitHub Pages:
-      // If the browser cannot load /src/main.tsx (static hosting of unbuilt repo),
-      // smoothly redirect to the pre-built /docs/ folder.
-      window.addEventListener('error', function(e) {
-        try {
-          if (e && e.filename && e.filename.indexOf('main.tsx') !== -1) {
-            if (window.location.hostname.endsWith('github.io') && !window.location.pathname.includes('/docs')) {
-              var p = window.location.pathname;
-              var target = p.endsWith('/') ? p + 'docs/' : p + '/docs/';
-              window.location.replace(window.location.origin + target + window.location.search + window.location.hash);
-            }
-          }
-        } catch (err) {}
-      }, true);
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

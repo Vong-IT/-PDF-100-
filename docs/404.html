@@ -4,25 +4,25 @@
     <meta charset="utf-8">
     <title>Secure PDF Manager & Khmer Converter</title>
     <script>
-      // Single Page Apps for GitHub Pages
-      // https://github.com/rafgraph/spa-github-pages
-      // Redirects 404s back to index.html with the route preserved
       (function() {
-        var pathSegmentsToKeep = 1;
-        var l = window.location;
-        l.replace(
-          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-          l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
-          l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
-          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-          l.hash
-        );
+        try {
+          var loc = window.location;
+          // When 404 happens on GitHub Pages, redirect back to repository root cleanly
+          if (loc.hostname && loc.hostname.endsWith('github.io')) {
+            var parts = loc.pathname.split('/').filter(Boolean);
+            var repoName = parts.length > 0 ? parts[0] : '';
+            var target = loc.origin + (repoName ? '/' + repoName + '/' : '/');
+            loc.replace(target);
+          } else {
+            loc.replace('/');
+          }
+        } catch (e) {
+          window.location.href = './';
+        }
       })();
     </script>
   </head>
-  <body>
-    <p style="font-family: sans-serif; text-align: center; margin-top: 2rem;">
-      កំពុងបញ្ជូនបន្ត... / Redirecting to application...
-    </p>
+  <body style="font-family: system-ui, sans-serif; text-align: center; padding-top: 60px; background: #f8fafc; color: #334155;">
+    <p>កំពុងត្រឡប់ទៅកាន់ទំព័រដើម... / Redirecting to application root...</p>
   </body>
 </html>

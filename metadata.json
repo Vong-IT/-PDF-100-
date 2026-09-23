@@ -1,0 +1,6 @@
+{
+  "name": "Secure PDF Manager & Khmer Converter",
+  "description": "កម្មវិធីគ្រប់គ្រង PDF បម្លែងឯកសារទៅជារូបភាព ឬអត្ថបទរហ័ស ធានាមិនខុសជើងអក្សរខ្មែរ និងរក្សាទ្រង់ទ្រាយដើម រួមទាំងប្រព័ន្ធចាក់សោការពារដោយលេខសម្ងាត់។",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

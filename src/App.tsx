@@ -17,6 +17,8 @@ import { ImageToWordPanel } from './components/ImageToWordPanel';
 import { PasswordPromptModal } from './components/PasswordPromptModal';
 import { loadPdfJsDoc } from './utils/pdfHelper';
 import { createKhmerSamplePdf } from './utils/samplePdf';
+import { getStoredGeminiApiKey } from './utils/aiOcrService';
+import { ApiKeyModal } from './components/ApiKeyModal';
 
 export default function App() {
   const [lang, setLang] = useState<Language>(() => {
@@ -42,6 +44,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('viewer');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingText, setLoadingText] = useState<string>('');
+  const [isGlobalApiKeyModalOpen, setIsGlobalApiKeyModalOpen] = useState<boolean>(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(() => !!getStoredGeminiApiKey());
 
   // Sidebar navigation state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -218,6 +222,8 @@ export default function App() {
           onToggleMobileMenu={() => setIsMobileSidebarOpen((prev) => !prev)}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+          onOpenApiKeyModal={() => setIsGlobalApiKeyModalOpen(true)}
+          hasApiKey={hasApiKey}
         />
 
         {/* Dynamic Panel Content Area */}
@@ -363,6 +369,19 @@ export default function App() {
         onCancel={() => setPasswordModal((prev) => ({ ...prev, isOpen: false }))}
         error={passwordModal.error}
         isLoading={passwordModal.isLoading}
+      />
+
+      {/* Global Gemini API Key Modal (Crucial for GitHub Pages / Static Hosting) */}
+      <ApiKeyModal
+        isOpen={isGlobalApiKeyModalOpen}
+        onClose={() => {
+          setIsGlobalApiKeyModalOpen(false);
+          setHasApiKey(!!getStoredGeminiApiKey());
+        }}
+        lang={lang}
+        onSaved={() => {
+          setHasApiKey(true);
+        }}
       />
     </div>
   );

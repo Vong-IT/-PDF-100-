@@ -22,6 +22,26 @@
 
 ---
 
+## ⚡ ការប្រើប្រាស់មុខងារបម្លែងឯកសារលើ GitHub Pages (Using Conversion Features on GitHub Pages)
+
+ដោយសារ GitHub Pages គឺជា Static Hosting (គ្មាន Node.js Server Backend) កម្មវិធីត្រូវបានកែលម្អយ៉ាងពិសេស៖
+
+1. **ស្រង់អក្សរផ្ទាល់ពី PDF (Native PDF Extraction) - ១០០% ឥតគិតថ្លៃ និងដំណើរការលើ Browser ផ្ទាល់**៖
+   - ដំណើរការភ្លាមៗដោយស្វ័យប្រវត្តិនៅលើ GitHub Pages ដោយមិនបាច់ត្រូវការ API Key ឬ Server ឡើយ។
+   - អាចទាញយកជាឯកសារ Microsoft Word (.docx) និង Excel (.xlsx) ដោយរក្សាបានទ្រង់ទ្រាយ អក្សរខ្មែរ និងតារាងយ៉ាងពេញលេញ។
+
+2. **ស្រង់អក្សររូបភាពតាម AI (Client-Side Gemini AI OCR) លើ Browser**៖
+   - ប្រសិនបើចង់ស្រង់អក្សរខ្មែរពីរូបភាពស្កេន (Scanned Images/PDF) លោកអ្នកគ្រាន់តែចុចលើប៊ូតុង **«🔑 ភ្ជាប់ API Key»** នៅផ្នែកខាងលើ Header។
+   - បញ្ចូល Gemini API Key ឥតគិតថ្លៃ (Free Key ពី [Google AI Studio](https://aistudio.google.com/app/apikey))។ Key ត្រូវបានរក្សាទុកតែនៅក្នុង Browser របស់អ្នកផ្ទាល់ប៉ុណ្ណោះ។
+
+3. **បម្លែងរូបភាពទៅជា Word (Image to Word)**៖
+   - របៀប «បង្កប់រូបភាពដើមក្នុង Word (Embed Original Images)» ដំណើរការ ១០០% លើ Browser ដោយគ្មានត្រូវការ Server ឬ Key។
+
+4. **សុវត្ថិភាពឯកសារ (Security & Watermarking)**៖
+   - មុខងារ «ត្រាទឹកសម្ងាត់ (Watermark)» ដំណើរការ ១០០% លើ Browser។
+
+---
+
 ### English: How to Deploy to GitHub Pages (No White Screen)
 
 If you see a blank white page on GitHub Pages, it is typically caused by:

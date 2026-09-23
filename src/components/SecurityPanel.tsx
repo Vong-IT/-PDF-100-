@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Language, SecurityOptions, WatermarkOptions } from '../types';
 import { applyWatermarkToPdf, triggerDownload } from '../utils/pdfHelper';
+import { isStaticHost } from '../utils/aiOcrService';
 
 interface SecurityPanelProps {
   lang: Language;
@@ -301,6 +302,22 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({
           <span>{isKm ? '៣. ត្រាទឹកសម្ងាត់' : '3. Watermark'}</span>
         </button>
       </div>
+
+      {isStaticHost() && (subTab === 'encrypt' || subTab === 'decrypt') && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold">
+              {isKm ? 'ព័ត៌មានសម្រាប់ការប្រើប្រាស់លើ GitHub Pages' : 'GitHub Pages Hosting Notice'}
+            </span>
+            <p className="mt-1 text-amber-800 leading-relaxed">
+              {isKm
+                ? 'មុខងារកូដនីយកម្មចាក់សោលេខសម្ងាត់ (AES PDF Encryption) តម្រូវឱ្យមានម៉ាស៊ីនបម្រើ Node.js Backend។ នៅលើ GitHub Pages (Static Hosting) លោកអ្នកអាចប្រើប្រាស់មុខងារ «៣. ត្រាទឹកសម្ងាត់ (Watermark)» ដែលដំណើរការ ១០០% ដោយផ្ទាល់លើ Browser ដើម្បីការពារឯកសារ ឬដំណើរការកម្មវិធីជាមួយ "npm run dev" នៅលើម៉ាស៊ីនផ្ទាល់។'
+                : 'PDF password encryption requires a Node.js backend. On static GitHub Pages hosting, please use "3. Watermark" which runs 100% locally in your browser to protect documents.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 1. ENCRYPT TAB */}
       {subTab === 'encrypt' && (

@@ -26,6 +26,7 @@ import {
   Edit3,
   BookOpen,
   FileSpreadsheet,
+  Key,
 } from 'lucide-react';
 import type { Language } from '../types';
 import {
@@ -38,6 +39,8 @@ import { exportToExcelFile } from '../utils/excelExport';
 import { WordPreview } from './WordPreview';
 import { WordPageSetupModal } from './WordPageSetupModal';
 import { createSampleKhmerImage } from '../utils/sampleImage';
+import { extractKhmerOcr, isStaticHost, getStoredGeminiApiKey } from '../utils/aiOcrService';
+import { ApiKeyModal } from './ApiKeyModal';
 import { triggerDownload } from '../utils/pdfHelper';
 
 export interface UploadedImageItem {
@@ -70,8 +73,14 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Conversion Mode: 'ocr' (AI OCR to Word text & layout) or 'embed' (Embed images directly as Word pages)
-  const [conversionMode, setConversionMode] = useState<'ocr' | 'embed'>('ocr');
+  const [conversionMode, setConversionMode] = useState<'ocr' | 'embed'>(() => {
+    if (isStaticHost() && !getStoredGeminiApiKey()) {
+      return 'embed';
+    }
+    return 'ocr';
+  });
   const [activeView, setActiveView] = useState<'preview' | 'raw'>('preview');
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
 
   // Images state
   const [images, setImages] = useState<UploadedImageItem[]>([]);
@@ -208,42 +217,14 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
     );
 
     try {
-      const response = await fetch('/api/pdf/ocr-khmer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: target.dataUrl,
-          mimeType: target.file?.type || 'image/png',
-          pageNumber: 1,
-          preserveLayout: true,
-        }),
+      const ocrRes = await extractKhmerOcr({
+        imageBase64: target.dataUrl,
+        mimeType: target.file?.type || 'image/png',
+        pageNumber: 1,
+        preserveLayout: true,
       });
 
-      let data: any = null;
-      try {
-        data = await response.json();
-      } catch (_e) {
-        throw new Error(
-          isKm
-            ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើលោកអ្នកកំពុងប្រើប្រាស់លើ GitHub Pages (Hosting ឋិតិវន្ត) សូមប្តូរទៅប្រើរបៀប «បង្កប់រូបភាពដើមក្នុង Word» ដើម្បីទាញយកឯកសារ Word ដោយជោគជ័យ ១០០%។'
-            : 'Cannot connect to backend API. If hosting on static GitHub Pages, please switch to "Embed Original Images" mode to compile into Word (.docx) with 100% success.'
-        );
-      }
-      if (!response.ok || !data?.success) {
-        let msg = data?.error || 'Failed to extract text from image';
-        if (msg.includes('503') || msg.includes('High Demand') || msg.includes('high demand')) {
-          msg = isKm
-            ? 'ម៉ាស៊ីន AI កំពុងមានអ្នកប្រើប្រាស់ច្រើន (High Demand)។ សូមចុច «សាកល្បងម្តងទៀត» ឬប្តូរទៅរបៀប «បង្កប់រូបភាពក្នុង Word»។'
-            : 'AI service is busy. Please click Retry or switch to Embed mode.';
-        } else if (msg.includes('quota') || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
-          msg = isKm
-            ? 'កូតា AI ប្រើប្រាស់លើសកម្រិតបណ្តោះអាសន្ន។ សូមចុច «សាកល្បងម្តងទៀត» ឬប្តូរទៅរបៀប «បង្កប់រូបភាពក្នុង Word» ដើម្បីទាញយកឯកសារ Word ភ្លាមៗ!'
-            : 'AI quota temporarily limited. Please retry or switch to Embed mode.';
-        }
-        throw new Error(msg);
-      }
-
-      const extracted = data.text || '';
+      const extracted = ocrRes.text || '';
       setImages((prev) =>
         prev.map((img) =>
           img.id === id ? { ...img, ocrStatus: 'success', ocrText: extracted, ocrError: undefined } : img
@@ -251,10 +232,22 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
       );
     } catch (err: any) {
       console.error('Image OCR error:', err);
+      if (err?.code === 'NO_GEMINI_API_KEY' || err?.message === 'NO_GEMINI_API_KEY') {
+        setIsApiKeyModalOpen(true);
+      }
       setImages((prev) =>
         prev.map((img) =>
           img.id === id
-            ? { ...img, ocrStatus: 'error', ocrError: err.message || 'Error running OCR' }
+            ? {
+                ...img,
+                ocrStatus: 'error',
+                ocrError:
+                  err?.code === 'NO_GEMINI_API_KEY'
+                    ? (isKm
+                        ? 'នៅលើ GitHub Pages៖ សូមបញ្ចូល Gemini API Key ឬប្តូរទៅរបៀប «បង្កប់រូបភាពដើមក្នុង Word»'
+                        : 'On GitHub Pages: Please enter a Gemini API Key or switch to Embed Images mode')
+                    : (err.message || 'Error running OCR'),
+              }
             : img
         )
       );
@@ -1098,6 +1091,17 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
         options={wordOptions}
         onOptionsChange={(newOpts) => setWordOptions((prev) => ({ ...prev, ...newOpts }))}
         isKm={isKm}
+      />
+
+      {/* Gemini API Key Modal for GitHub Pages / Client Execution */}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        lang={lang}
+        onSwitchToNative={() => setConversionMode('embed')}
+        onSaved={() => {
+          if (selectedImageId) runOcrOnImage(selectedImageId);
+        }}
       />
     </div>
   );

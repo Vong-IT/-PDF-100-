@@ -27,6 +27,7 @@ import {
   SlidersHorizontal,
   Sliders,
   FileSpreadsheet,
+  Key,
 } from 'lucide-react';
 import type { Language } from '../types';
 import { extractNativePageText, renderPageToCanvas, triggerDownload } from '../utils/pdfHelper';
@@ -39,6 +40,8 @@ import {
 import { exportToExcelFile, extractMarkdownTables } from '../utils/excelExport';
 import { WordPreview } from './WordPreview';
 import { WordPageSetupModal } from './WordPageSetupModal';
+import { extractKhmerOcr, isStaticHost, getStoredGeminiApiKey } from '../utils/aiOcrService';
+import { ApiKeyModal } from './ApiKeyModal';
 
 interface TextExtractionPanelProps {
   lang: Language;
@@ -57,8 +60,13 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
 }) => {
   const isKm = lang === 'km';
 
-  // Mode and view state
-  const [activeMode, setActiveMode] = useState<'ai' | 'native'>('ai');
+  // Mode and view state - auto-default to 'native' if on static host without API key
+  const [activeMode, setActiveMode] = useState<'ai' | 'native'>(() => {
+    if (isStaticHost() && !getStoredGeminiApiKey()) {
+      return 'native';
+    }
+    return 'ai';
+  });
   const [activeView, setActiveView] = useState<'preview' | 'raw' | 'split'>('preview');
   const [viewScope, setViewScope] = useState<'single' | 'all'>('single');
   const [targetPage, setTargetPage] = useState<number>(currentPage || 1);
@@ -69,6 +77,7 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showSuccessBanner, setShowSuccessBanner] = useState<boolean>(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
 
   // Left menu collapse state and page thumbnails
   const [isLeftMenuCollapsed, setIsLeftMenuCollapsed] = useState<boolean>(false);
@@ -260,33 +269,14 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
       const { canvas } = await renderPageToCanvas(pdfDoc, pageNum, 2.0);
       const imageBase64 = canvas.toDataURL('image/png');
 
-      const response = await fetch('/api/pdf/ocr-khmer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageBase64,
-          pageNumber: pageNum,
-          mimeType: 'image/png',
-        }),
+      const ocrResult = await extractKhmerOcr({
+        imageBase64,
+        pageNumber: pageNum,
+        mimeType: 'image/png',
+        preserveLayout: true,
       });
 
-      let data: any = null;
-      try {
-        data = await response.json();
-      } catch (_e) {
-        throw new Error(
-          isKm
-            ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើអ្នកកំពុងដំណើរការលើ GitHub Pages សូមដំណើរការតាមរយៈ Node.js (npm run dev ឬ server)។'
-            : 'Cannot connect to backend API. If hosting on static GitHub Pages, run via Node.js server (npm run dev/start).'
-        );
-      }
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to perform AI OCR');
-      }
-
-      const text = data.text;
+      const text = ocrResult.text;
       setAiText(text);
       setPageAiCache((prev) => {
         const next = { ...prev, [pageNum]: text };
@@ -302,7 +292,16 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
       }
     } catch (err: any) {
       console.error('AI OCR error:', err);
-      setErrorMessage(err.message || 'Error communicating with AI OCR engine');
+      if (err?.code === 'NO_GEMINI_API_KEY' || err?.message === 'NO_GEMINI_API_KEY') {
+        setIsApiKeyModalOpen(true);
+        setErrorMessage(
+          isKm
+            ? 'នៅលើ GitHub Pages៖ សូមភ្ជាប់ Gemini API Key ឥតគិតថ្លៃដើម្បីប្រើប្រាស់ AI OCR ឬចុចលើ «ស្រង់អក្សរផ្ទាល់ពី PDF (Native)» ដើម្បីបម្លែងជា Word & Excel ដោយឥតគិតថ្លៃ ១០០%។'
+            : 'On GitHub Pages: Please connect a free Gemini API Key or switch to Native PDF extraction for 100% free conversion.'
+        );
+      } else {
+        setErrorMessage(err.message || 'Error communicating with AI OCR engine');
+      }
       setPageStatus((prev) => ({ ...prev, [pageNum]: 'error' }));
       // Fallback to native text if available
       const fallback = pageNativeCache[pageNum] || nativeText;
@@ -380,32 +379,15 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
           const { canvas } = await renderPageToCanvas(pdfDoc, p, 2.0);
           const imageBase64 = canvas.toDataURL('image/png');
 
-          const response = await fetch('/api/pdf/ocr-khmer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              imageBase64,
-              pageNumber: p,
-              mimeType: 'image/png',
-            }),
+          const ocrRes = await extractKhmerOcr({
+            imageBase64,
+            pageNumber: p,
+            mimeType: 'image/png',
+            preserveLayout: true,
           });
 
-          let data: any = null;
-          try {
-            data = await response.json();
-          } catch (_e) {
-            throw new Error(
-              isKm
-                ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើអ្នកកំពុងដំណើរការលើ GitHub Pages សូមដំណើរការតាមរយៈ Node.js (npm run dev ឬ server)។'
-                : 'Cannot connect to backend API. If hosting on static GitHub Pages, run via Node.js server (npm run dev/start).'
-            );
-          }
-          if (!response.ok || !data?.success) {
-            throw new Error(data?.error || `Failed to OCR page ${p}`);
-          }
-
-          newAiMap[p] = data.text;
-          setPageAiCache((prev) => ({ ...prev, [p]: data.text }));
+          newAiMap[p] = ocrRes.text;
+          setPageAiCache((prev) => ({ ...prev, [p]: ocrRes.text }));
           setPageStatus((prev) => ({ ...prev, [p]: 'done' }));
           completed++;
 
@@ -413,8 +395,8 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
           if (viewScope === 'all') {
             setExtractedText(buildAllPagesText(newAiMap, newNativeMap, 'ai'));
           } else if (p === targetPage) {
-            setAiText(data.text);
-            setExtractedText(data.text);
+            setAiText(ocrRes.text);
+            setExtractedText(ocrRes.text);
           }
 
           setBatchProgress((prev) => ({
@@ -427,6 +409,16 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
           await new Promise((resolve) => setTimeout(resolve, 100));
         } catch (err: any) {
           console.error(`Error on page ${p}:`, err);
+          if (err?.code === 'NO_GEMINI_API_KEY' || err?.message === 'NO_GEMINI_API_KEY') {
+            cancelBatchRef.current = true;
+            setIsApiKeyModalOpen(true);
+            setErrorMessage(
+              isKm
+                ? 'នៅលើ GitHub Pages៖ សូមភ្ជាប់ Gemini API Key ឥតគិតថ្លៃដើម្បីដំណើរការ AI OCR ឬចុចលើ «ស្រង់អក្សរផ្ទាល់ពី PDF (Native)» ដើម្បីបម្លែងដោយមិនបាច់ប្រើ Key។'
+                : 'On GitHub Pages: Please connect a free Gemini API Key or switch to Native PDF extraction.'
+            );
+            break;
+          }
           errors++;
           setPageStatus((prev) => ({ ...prev, [p]: 'error' }));
 
@@ -1665,6 +1657,21 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
         options={wordOptions}
         onOptionsChange={(newOpts) => setWordOptions((prev) => ({ ...prev, ...newOpts }))}
         isKm={isKm}
+      />
+
+      {/* Gemini API Key Modal for GitHub Pages / Client Execution */}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        lang={lang}
+        onSwitchToNative={() => {
+          setActiveMode('native');
+          setErrorMessage(null);
+        }}
+        onSaved={() => {
+          setErrorMessage(null);
+          runAiOcr(targetPage, true);
+        }}
       />
     </div>
   );

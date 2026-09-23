@@ -122,9 +122,18 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({
         }),
       });
 
-      const data = await resp.json();
-      if (!resp.ok || !data.success) {
-        throw new Error(data.error || 'Failed to encrypt document');
+      let data: any = null;
+      try {
+        data = await resp.json();
+      } catch (_e) {
+        throw new Error(
+          isKm
+            ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើអ្នកកំពុងដំណើរការលើ GitHub Pages សូមដំណើរការតាមរយៈ Node.js (npm run dev ឬ server)។'
+            : 'Cannot connect to backend API. If hosting on static GitHub Pages, run via Node.js server (npm run dev/start).'
+        );
+      }
+      if (!resp.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to encrypt document');
       }
 
       // Convert back to Uint8Array
@@ -179,9 +188,18 @@ export const SecurityPanel: React.FC<SecurityPanelProps> = ({
         }),
       });
 
-      const data = await resp.json();
-      if (!resp.ok || !data.success) {
-        throw new Error(data.error || 'Incorrect password');
+      let data: any = null;
+      try {
+        data = await resp.json();
+      } catch (_e) {
+        throw new Error(
+          isKm
+            ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើអ្នកកំពុងដំណើរការលើ GitHub Pages សូមដំណើរការតាមរយៈ Node.js (npm run dev ឬ server)។'
+            : 'Cannot connect to backend API. If hosting on static GitHub Pages, run via Node.js server (npm run dev/start).'
+        );
+      }
+      if (!resp.ok || !data?.success) {
+        throw new Error(data?.error || 'Incorrect password');
       }
 
       const cleanBase64 = data.decryptedPdfBase64.replace(/^data:application\/pdf;base64,/, '');

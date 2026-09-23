@@ -21,6 +21,7 @@ import type { Language, AppTab } from '../types';
 interface SidebarProps {
   lang: Language;
   onToggleLang: () => void;
+  onSelectLang?: (lang: Language) => void;
   activeTab: AppTab;
   onSelectTab: (tab: AppTab) => void;
   hasDocument: boolean;
@@ -38,6 +39,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   lang,
   onToggleLang,
+  onSelectLang,
   activeTab,
   onSelectTab,
   hasDocument,
@@ -297,16 +299,62 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>{isKm ? 'ឯកសារគំរូខ្មែរ' : 'Sample Khmer PDF'}</span>
             </button>
 
+            {/* Creator Card */}
+            <div className="p-2.5 bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-slate-50 border border-blue-200/80 rounded-xl flex items-center gap-2.5 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0">
+                LM
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
+                  {isKm ? 'អ្នកបង្កើត Website' : 'Website Creator'}
+                </div>
+                <div className="text-xs font-black text-slate-900 truncate">
+                  ឡោម មនីវង្ស
+                </div>
+              </div>
+            </div>
+
             {/* Language Switcher */}
-            <div className="pt-1 flex items-center justify-between text-xs text-slate-500">
-              <span className="text-[11px] font-medium">{isKm ? 'ភាសា (Language):' : 'Language:'}</span>
-              <button
-                onClick={onToggleLang}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 font-bold text-slate-700 transition-colors cursor-pointer shadow-2xs"
-              >
-                <Globe className="w-3 h-3 text-slate-500" />
-                <span>{isKm ? 'ខ្មែរ (KM)' : 'English'}</span>
-              </button>
+            <div className="pt-0.5 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[11px] font-medium">{isKm ? 'ភាសា ៖' : 'Language:'}</span>
+              <div className="flex bg-slate-200/70 p-0.5 rounded-lg border border-slate-200">
+                <button
+                  id="sidebar-lang-km"
+                  onClick={() => {
+                    if (onSelectLang) {
+                      onSelectLang('km');
+                    } else if (!isKm) {
+                      onToggleLang();
+                    }
+                  }}
+                  className={`px-2 py-0.5 rounded text-xs font-bold transition-all cursor-pointer ${
+                    isKm
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ប្តូរជាភាសាខ្មែរ"
+                >
+                  🇰🇭 ខ្មែរ
+                </button>
+                <button
+                  id="sidebar-lang-en"
+                  onClick={() => {
+                    if (onSelectLang) {
+                      onSelectLang('en');
+                    } else if (isKm) {
+                      onToggleLang();
+                    }
+                  }}
+                  className={`px-2 py-0.5 rounded text-xs font-bold transition-all cursor-pointer ${
+                    !isKm
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Switch to English"
+                >
+                  🇬🇧 EN
+                </button>
+              </div>
             </div>
           </>
         ) : (
@@ -325,12 +373,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Sparkles className="w-4 h-4 text-blue-600" />
             </button>
+            <div
+              className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 text-blue-700 flex items-center justify-center font-bold text-[10px] cursor-default"
+              title={isKm ? 'អ្នកបង្កើត ៖ ឡោម មនីវង្ស' : 'Creator: Lom Monyvong (ឡោម មនីវង្ស)'}
+            >
+              LM
+            </div>
             <button
               onClick={onToggleLang}
-              className="p-2 text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
-              title="Switch Language"
+              className="p-1.5 text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold cursor-pointer"
+              title={isKm ? 'Switch to English' : 'ប្តូរជាភាសាខ្មែរ'}
             >
-              {isKm ? 'EN' : 'ខ្មែរ'}
+              {isKm ? '🇰🇭' : '🇬🇧'}
             </button>
           </div>
         )}

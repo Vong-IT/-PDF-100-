@@ -264,9 +264,18 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
         }),
       });
 
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to perform AI OCR');
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch (_e) {
+        throw new Error(
+          isKm
+            ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើអ្នកកំពុងដំណើរការលើ GitHub Pages សូមដំណើរការតាមរយៈ Node.js (npm run dev ឬ server)។'
+            : 'Cannot connect to backend API. If hosting on static GitHub Pages, run via Node.js server (npm run dev/start).'
+        );
+      }
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to perform AI OCR');
       }
 
       const text = data.text;
@@ -373,9 +382,18 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
             }),
           });
 
-          const data = await response.json();
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || `Failed to OCR page ${p}`);
+          let data: any = null;
+          try {
+            data = await response.json();
+          } catch (_e) {
+            throw new Error(
+              isKm
+                ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើអ្នកកំពុងដំណើរការលើ GitHub Pages សូមដំណើរការតាមរយៈ Node.js (npm run dev ឬ server)។'
+                : 'Cannot connect to backend API. If hosting on static GitHub Pages, run via Node.js server (npm run dev/start).'
+            );
+          }
+          if (!response.ok || !data?.success) {
+            throw new Error(data?.error || `Failed to OCR page ${p}`);
           }
 
           newAiMap[p] = data.text;

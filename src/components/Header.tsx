@@ -7,6 +7,7 @@ import {
   Upload,
   Sparkles,
   Globe,
+  User,
   Image as ImageIcon,
   FileCheck2,
   FileImage,
@@ -19,6 +20,7 @@ import type { Language, AppTab } from '../types';
 interface HeaderProps {
   lang: Language;
   onToggleLang: () => void;
+  onSelectLang?: (lang: Language) => void;
   activeTab: AppTab;
   hasDocument: boolean;
   fileName: string;
@@ -34,6 +36,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   lang,
   onToggleLang,
+  onSelectLang,
   activeTab,
   hasDocument,
   fileName,
@@ -173,16 +176,65 @@ export const Header: React.FC<HeaderProps> = ({
             <span>{isKm ? 'គំរូខ្មែរ' : 'Sample Khmer'}</span>
           </button>
 
-          {/* Language Toggle */}
-          <button
-            id="btn-toggle-lang"
-            onClick={onToggleLang}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition-colors cursor-pointer shadow-2xs"
-            title="Toggle Language"
+          {/* Creator Credit Badge */}
+          <div
+            className="hidden xl:flex items-center gap-2 px-2.5 py-1 bg-gradient-to-r from-blue-50/80 via-indigo-50/70 to-slate-50 border border-blue-200/70 rounded-xl text-xs shadow-2xs"
+            title={isKm ? 'អ្នកបង្កើតគេហទំព័រនេះ ៖ ឡោម មនីវង្ស' : 'Website Creator: Lom Monyvong'}
           >
-            <Globe className="w-3.5 h-3.5 text-slate-500" />
-            <span>{isKm ? 'EN' : 'ខ្មែរ'}</span>
-          </button>
+            <div className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shadow-2xs">
+              LM
+            </div>
+            <div className="flex items-center gap-1 leading-tight">
+              <span className="text-slate-500 text-[11px] font-medium">
+                {isKm ? 'បង្កើតដោយ ៖' : 'By:'}
+              </span>
+              <span className="font-bold text-slate-800 tracking-tight">
+                ឡោម មនីវង្ស
+              </span>
+            </div>
+          </div>
+
+          {/* Language Switcher (Khmer / English) */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shadow-2xs">
+            <button
+              id="btn-lang-km"
+              onClick={() => {
+                if (onSelectLang) {
+                  onSelectLang('km');
+                } else if (!isKm) {
+                  onToggleLang();
+                }
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                isKm
+                  ? 'bg-white text-blue-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="ប្តូរជាភាសាខ្មែរ (Khmer)"
+            >
+              <span className="text-[12px] leading-none">🇰🇭</span>
+              <span>ខ្មែរ</span>
+            </button>
+            <button
+              id="btn-lang-en"
+              onClick={() => {
+                if (onSelectLang) {
+                  onSelectLang('en');
+                } else if (isKm) {
+                  onToggleLang();
+                }
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                !isKm
+                  ? 'bg-white text-blue-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Switch to English"
+            >
+              <span className="text-[12px] leading-none">🇬🇧</span>
+              <span>EN</span>
+            </button>
+          </div>
         </div>
       </div>
     </header>

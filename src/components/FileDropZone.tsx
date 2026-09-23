@@ -67,13 +67,21 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
     <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
       {/* Hero Presentation */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold mb-4">
-          <Shield className="w-4 h-4 text-blue-600" />
-          <span>
-            {isKm
-              ? 'បច្ចេកវិទ្យាការពារទិន្នន័យឯកជនភាព និងរក្សាអក្សរសាស្ត្រខ្មែរ ១០០%'
-              : '100% Private Document Processing & Khmer Typography Preservation'}
-          </span>
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold">
+            <Shield className="w-4 h-4 text-blue-600" />
+            <span>
+              {isKm
+                ? 'បច្ចេកវិទ្យាការពារទិន្នន័យឯកជនភាព និងរក្សាអក្សរសាស្ត្រខ្មែរ ១០០%'
+                : '100% Private Document Processing & Khmer Typography'}
+            </span>
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 text-slate-800 text-xs font-bold shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+            <span className="text-slate-500 font-medium">{isKm ? 'អ្នកបង្កើត ៖' : 'Creator:'}</span>
+            <span className="text-blue-900 font-extrabold">ឡោម មនីវង្ស</span>
+          </div>
         </div>
         <h2 className="text-2xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-3">
           {isKm

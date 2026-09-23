@@ -19,7 +19,26 @@ import { loadPdfJsDoc } from './utils/pdfHelper';
 import { createKhmerSamplePdf } from './utils/samplePdf';
 
 export default function App() {
-  const [lang, setLang] = useState<Language>('km');
+  const [lang, setLang] = useState<Language>(() => {
+    try {
+      const saved = localStorage.getItem('app_lang_pref');
+      if (saved === 'km' || saved === 'en') return saved;
+    } catch (_e) {}
+    return 'km';
+  });
+
+  const handleSetLang = (newLang: Language) => {
+    setLang(newLang);
+    try {
+      localStorage.setItem('app_lang_pref', newLang);
+      document.documentElement.lang = newLang;
+    } catch (_e) {}
+  };
+
+  const handleToggleLang = () => {
+    handleSetLang(lang === 'km' ? 'en' : 'km');
+  };
+
   const [activeTab, setActiveTab] = useState<AppTab>('viewer');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingText, setLoadingText] = useState<string>('');
@@ -166,7 +185,8 @@ export default function App() {
       {/* Left Sidebar Menu */}
       <Sidebar
         lang={lang}
-        onToggleLang={() => setLang(lang === 'km' ? 'en' : 'km')}
+        onToggleLang={handleToggleLang}
+        onSelectLang={handleSetLang}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         hasDocument={hasDocument}
@@ -186,7 +206,8 @@ export default function App() {
         {/* Streamlined Top Header */}
         <Header
           lang={lang}
-          onToggleLang={() => setLang(lang === 'km' ? 'en' : 'km')}
+          onToggleLang={handleToggleLang}
+          onSelectLang={handleSetLang}
           activeTab={activeTab}
           hasDocument={hasDocument}
           fileName={docState.fileName}
@@ -271,6 +292,51 @@ export default function App() {
             </div>
           )}
         </main>
+
+        {/* Sleek App Footer with Creator Attribution & Language Selector */}
+        <footer className="border-t border-slate-200 bg-white/90 backdrop-blur-xs px-4 sm:px-6 py-3.5 mt-auto">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <span className="font-semibold text-slate-800">
+                {lang === 'km' ? 'ប្រព័ន្ធគ្រប់គ្រង PDF & បម្លែង Word' : 'Secure PDF Studio & Word Converter'}
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="inline-flex items-center gap-1.5 text-slate-600">
+                <span>{lang === 'km' ? 'អ្នកបង្កើត ៖' : 'Created by:'}</span>
+                <strong className="font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200 shadow-2xs">
+                  ឡោម មនីវង្ស
+                </strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline text-slate-400">
+                {lang === 'km' ? 'សុវត្ថិភាពខ្ពស់ & រក្សាអក្សរខ្មែរ' : '100% Client-Side Privacy'}
+              </span>
+              <span className="hidden sm:inline text-slate-300">|</span>
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                <button
+                  onClick={() => handleSetLang('km')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                    lang === 'km' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ប្តូរជាភាសាខ្មែរ"
+                >
+                  🇰🇭 ខ្មែរ
+                </button>
+                <button
+                  onClick={() => handleSetLang('en')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                    lang === 'en' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Switch to English"
+                >
+                  🇬🇧 English
+                </button>
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
 
       {/* Global Loading Overlay */}

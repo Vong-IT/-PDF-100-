@@ -14,6 +14,7 @@ import {
   PageNumber,
   PageOrientation,
   ImageRun,
+  HeightRule,
 } from 'docx';
 
 export type WordTableStyle =
@@ -1136,18 +1137,42 @@ function parseMarkdownTableLines(tableLines: string[]): ParsedTable | null {
     alignmentLineIdx = 2;
   }
 
-  const dataRows: string[][] = [];
+  // Parse all raw data rows first to find the absolute maximum columns
+  const rawDataRows: string[][] = [];
   for (let r = alignmentLineIdx; r < tableLines.length; r++) {
-    const row = parseRow(tableLines[r]);
-    while (row.length < headerCells.length) row.push('');
-    dataRows.push(row.slice(0, headerCells.length));
+    rawDataRows.push(parseRow(tableLines[r]));
   }
+
+  // Calculate total columns required across all rows
+  const maxCols = Math.max(headerCells.length, ...rawDataRows.map((r) => r.length), 1);
+
+  // Normalize header cells to maxCols so no columns are truncated
+  const finalHeaders = [...headerCells];
+  while (finalHeaders.length < maxCols) {
+    finalHeaders.push('');
+  }
+
+  // Normalize alignments to maxCols
+  const finalAlignments = [...alignments];
+  while (finalAlignments.length < maxCols) {
+    finalAlignments.push('left');
+  }
+
+  // Preserve every row (including completely empty/blank rows) with exact column count
+  // Rows with data remain in their exact row index and column positions without shifting
+  const dataRows: string[][] = rawDataRows.map((row) => {
+    const padded = [...row];
+    while (padded.length < maxCols) {
+      padded.push('');
+    }
+    return padded;
+  });
 
   return {
     type: 'table',
-    headers: headerCells,
+    headers: finalHeaders,
     rows: dataRows,
-    alignments,
+    alignments: finalAlignments,
   };
 }
 
@@ -3006,8 +3031,8 @@ function buildTableCellParagraphs(
     return [
       new Paragraph({
         alignment: alignType,
-        spacing: { before: 20, after: 20, line: 260 },
-        children: [new TextRun('')],
+        spacing: { before: 40, after: 40, line: 260 },
+        children: [new TextRun({ text: '', size: halfPoints, font: { name: fontFamily } })],
       }),
     ];
   }
@@ -3294,6 +3319,7 @@ function buildDocxTable(
   // Data Rows - rendered with rich multi-line paragraphs (bullets, shapes, images) and cantSplit: true
   parsed.rows.forEach((row, rowIdx) => {
     const isZebra = effectiveStyle === 'striped' && rowIdx % 2 === 1;
+    const isRowEmpty = row.every((c) => !c || c.trim() === '');
 
     const dataCells = row.map((rawCellText, colIdx) => {
       const align = parsed.alignments[colIdx] || 'left';
@@ -3335,6 +3361,7 @@ function buildDocxTable(
     tableRows.push(
       new TableRow({
         cantSplit: true,
+        height: isRowEmpty ? { value: 360, rule: HeightRule.ATLEAST } : undefined,
         children: dataCells,
       })
     );

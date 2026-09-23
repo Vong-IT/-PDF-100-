@@ -1312,7 +1312,7 @@ const RenderBlock: React.FC<RenderBlockProps> = ({
                     return (
                       <td
                         key={colIdx}
-                        className={`py-2 px-3 ${
+                        className={`py-2 px-3 min-h-[28px] ${
                           isSuccess ? 'text-emerald-700 font-semibold' : 'text-slate-800'
                         } ${!isMinimal && !isBorderless ? 'border-r last:border-r-0' : ''} ${
                           align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'

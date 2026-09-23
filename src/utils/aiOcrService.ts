@@ -82,8 +82,12 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
      [name]ឈ្មោះហត្ថលេខី[/name]
      :::
      or mark right-aligned dates/signatures with [right]...[/right].
-4. TABLES PRESERVATION & MULTI-PAGE CONTINUATION (សូមរក្សាតារាងអោយមានគ្រប់ទំព័រទោះបីក្នុងតារាងមានរូបភាព Shape ឬ Bullet ក៏ដោយ):
-   - TABLE CONTINUATION ACROSS ALL PAGES (រក្សាតារាងគ្រប់ទំព័រ): If a table spans multiple pages, or continues onto page 2, page 3, etc., ALWAYS transcribe it as a complete, valid Markdown table with headers and columns intact on EVERY page! NEVER collapse, flatten, or convert tables into plain text on any page!
+4. TABLES FIDELITY, EMPTY ROWS & ROW PRESERVATION (រក្សាជួរតារាង និងក្រឡាតារាងទាំងអស់នៅដដែល ១០០% ទោះបីជួរនោះគ្មានទិន្នន័យក៏ដោយ):
+   - ABSOLUTE ROW POSITION & INTEGRITY (រក្សាជួរដេក និងជួរឈរឱ្យនៅទីតាំងដើមដដែល):
+     * NEVER omit, skip, delete, or merge empty rows! If a row in the original document has no data, you MUST transcribe it as an empty Markdown row with all column pipes intact (e.g., '| | | |').
+     * NEVER shift or slide cells to the left when a cell is blank! If a cell has no data, output empty space between pipes '| |'.
+     * Rows and cells with data MUST remain in their exact, original row index and column index without any shifting!
+     * TABLE CONTINUATION ACROSS ALL PAGES (រក្សាតារាងគ្រប់ទំព័រ): If a table spans multiple pages, or continues onto page 2, page 3, etc., ALWAYS transcribe it as a complete, valid Markdown table with headers and columns intact on EVERY page! NEVER collapse, flatten, or convert tables into plain text on any page!
    - BULLET POINTS INSIDE TABLE CELLS: If table cells contain bullet points, lists, or multiple lines (e.g. •..., ➢..., -..., 1....), transcribe them cleanly within the cell using '<br>' to separate lines.
    - SHAPES & BOXES INSIDE TABLE CELLS: If cells contain callout boxes, status badges, or colored highlights, preserve them inside the cell using inline syntax (e.g. [box]...[/box], [badge]...[/badge], or [bg:#HEX]...[/bg]).
    - IMAGES & DIAGRAMS INSIDE TABLE CELLS: If cells contain embedded images, illustrations, or diagrams, preserve them inside the cell (e.g. ![រូបភាព](...) or [រូបភាព: ...]).
@@ -122,7 +126,8 @@ async function performClientGeminiOcr(
 ): Promise<{ text: string; modelUsed: string }> {
   const ai = new GoogleGenAI({ apiKey });
 
-  const promptText = `Transcribe the text, font styles ([muol], **bold**, *italic*), document layout (header-layout, signature-layout, tables), and any shapes/seals (:::shape) from this page (Page ${pageNumber}) with strict Khmer typography fidelity ('អក្សរមិនខុសដៃជើង') and visual shape style/color preservation for lossless Microsoft Word conversion.`;
+  const promptText = `Transcribe the text, font styles ([muol], **bold**, *italic*), document layout (header-layout, signature-layout, tables), and any shapes/seals (:::shape) from this page (Page ${pageNumber}) with strict Khmer typography fidelity ('អក្សរមិនខុសដៃជើង') and visual shape style/color preservation for lossless Microsoft Word conversion.
+CRITICAL TABLE FIDELITY: Keep all table rows and columns strictly in their exact positions. Even if a row has no data (empty/blank row), preserve that empty row in Markdown (e.g. '| | | |'). Rows with data must remain in their exact original row and column index without shifting or collapsing.`;
 
   const candidateModels = [
     'gemini-3.6-flash',

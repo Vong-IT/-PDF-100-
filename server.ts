@@ -273,8 +273,12 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
      [name]ឈ្មោះហត្ថលេខី[/name]
      :::
      or mark right-aligned dates/signatures with [right]...[/right].
-4. TABLES PRESERVATION & MULTI-PAGE CONTINUATION (សូមរក្សាតារាងអោយមានគ្រប់ទំព័រទោះបីក្នុងតារាងមានរូបភាព Shape ឬ Bullet ក៏ដោយ):
-   - TABLE CONTINUATION ACROSS ALL PAGES (រក្សាតារាងគ្រប់ទំព័រ): If a table spans multiple pages, or continues onto page 2, page 3, etc., ALWAYS transcribe it as a complete, valid Markdown table with headers and columns intact on EVERY page! NEVER collapse, flatten, or convert tables into plain text on any page!
+4. TABLES FIDELITY, EMPTY ROWS & ROW PRESERVATION (រក្សាជួរតារាង និងក្រឡាតារាងទាំងអស់នៅដដែល ១០០% ទោះបីជួរនោះគ្មានទិន្នន័យក៏ដោយ):
+   - ABSOLUTE ROW POSITION & INTEGRITY (រក្សាជួរដេក និងជួរឈរឱ្យនៅទីតាំងដើមដដែល):
+     * NEVER omit, skip, delete, or merge empty rows! If a row in the original document has no data, you MUST transcribe it as an empty Markdown row with all column pipes intact (e.g., '| | | |').
+     * NEVER shift or slide cells to the left when a cell is blank! If a cell has no data, output empty space between pipes '| |'.
+     * Rows and cells with data MUST remain in their exact, original row index and column index without any shifting!
+     * TABLE CONTINUATION ACROSS ALL PAGES (រក្សាតារាងគ្រប់ទំព័រ): If a table spans multiple pages, or continues onto page 2, page 3, etc., ALWAYS transcribe it as a complete, valid Markdown table with headers and columns intact on EVERY page! NEVER collapse, flatten, or convert tables into plain text on any page!
    - BULLET POINTS INSIDE TABLE CELLS: If table cells contain bullet points, lists, or multiple lines (e.g. •..., ➢..., -..., 1....), transcribe them cleanly within the cell using '<br>' to separate lines (e.g. • ចំណុចទី១<br>• ចំណុចទី២<br>• ចំណុចទី៣).
    - SHAPES & BOXES INSIDE TABLE CELLS: If cells contain callout boxes, status badges, or colored highlights, preserve them inside the cell using inline syntax (e.g. [box]...[/box], [badge]...[/badge], or [bg:#HEX]...[/bg]).
    - IMAGES & DIAGRAMS INSIDE TABLE CELLS: If cells contain embedded images, illustrations, or diagrams, preserve them inside the cell (e.g. ![រូបភាព](...) or [រូបភាព: ...]).
@@ -282,6 +286,8 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
      | ល.រ | កម្មវិធី និងសកម្មភាព | ខ្លឹមសារលម្អិត | ស្ថានភាព |
      | :---: | :--- | :--- | :---: |
      | ០១ | • បង្ហាញរូបភាព និងពន្យល់<br>• ពិភាក្សាជាក្រុម | [box]ខ្លឹមសារសំខាន់[/box]<br>• ធាតុទី១<br>• ធាតុទី២ | [bg:#ECFDF5]រួចរាល់[/bg] |
+     | | | | |
+     | ០២ | • សង្ខេបមេរៀន | កិច្ចការផ្ទះ | [bg:#EFF6FF]កំពុងធ្វើ[/bg] |
    - Preserve all rows, columns, alignments, and cell contents faithfully across every page without losing data.
 5. SHAPES, METADATA BOXES & EMBEDDED GRAPHICS (រក្សាទុករូបរាង Shape, ប្រអប់ព័ត៌មានក្បាលទំព័រ/កិច្ចតែងការបង្រៀន, ត្រា Seal):
    - If the page contains a decorative Seal box, Badge, Ribbon, Banner, or Announcement/Metadata Box (e.g. Lesson Plan Header / កិច្ចតែងការបង្រៀន, Course Info, Syllabus Box):
@@ -310,7 +316,8 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
 8. HEADINGS: Mark top-level document titles actually present in the text with '# ', major sections with '## ', subsections with '### '.
 9. CLEAN OUTPUT: Output ONLY the clean transcribed document content without any preface like "Here is the transcription:".`;
 
-    const promptText = `Transcribe the text, font styles ([muol], **bold**, *italic*), document layout (header-layout, signature-layout, tables), and any shapes/seals (:::shape) from this page (Page ${pageNumber || 1}) with strict Khmer typography fidelity ('អក្សរមិនខុសដៃជើង') and visual shape style/color preservation for lossless Microsoft Word conversion.`;
+    const promptText = `Transcribe the text, font styles ([muol], **bold**, *italic*), document layout (header-layout, signature-layout, tables), and any shapes/seals (:::shape) from this page (Page ${pageNumber || 1}) with strict Khmer typography fidelity ('អក្សរមិនខុសដៃជើង') and visual shape style/color preservation for lossless Microsoft Word conversion.
+CRITICAL TABLE FIDELITY: Keep all table rows and columns strictly in their exact positions. Even if a row has no data (empty/blank row), preserve that empty row in Markdown (e.g. '| | | |'). Rows with data must remain in their exact original row and column index without shifting or collapsing.`;
 
     const result = await generateOCRWithRetry(ai, cleanBase64, sanitizedMime, promptText, systemPrompt);
 

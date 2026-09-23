@@ -232,29 +232,40 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
       );
     } catch (err: any) {
       console.error('Image OCR error:', err);
-      if (
+      const rawMsg = err?.message || String(err);
+      const isRateLimit =
+        err?.code === 'RATE_LIMIT' ||
+        rawMsg.includes('429') ||
+        rawMsg.includes('RESOURCE_EXHAUSTED') ||
+        rawMsg.includes('exceeded your current quota');
+      const isNoKey =
         err?.code === 'NO_GEMINI_API_KEY' ||
-        err?.message === 'NO_GEMINI_API_KEY' ||
-        err?.code === 'RATE_LIMIT'
-      ) {
+        rawMsg.includes('NO_GEMINI_API_KEY') ||
+        rawMsg.includes('API key not valid') ||
+        rawMsg.includes('API_KEY_INVALID');
+
+      if (isNoKey || isRateLimit) {
         setIsApiKeyModalOpen(true);
       }
+
+      let userFriendlyError = rawMsg;
+      if (isRateLimit) {
+        userFriendlyError = isKm
+          ? 'កម្រិត AI Free Tier បានដល់កម្រិតកំណត់ (Rate Limit 429)។ សូមរង់ចាំប្រហែល ៣០ វិនាទី ឬភ្ជាប់ Gemini API Key ឥតគិតថ្លៃ។'
+          : 'AI Free Tier quota limit reached (429). Please wait a moment or enter your Gemini API Key.';
+      } else if (isNoKey) {
+        userFriendlyError = isKm
+          ? 'នៅលើ Vercel / GitHub Pages៖ សូមភ្ជាប់ Gemini API Key ឥតគិតថ្លៃ ឬប្តូរទៅរបៀប «បង្កប់រូបភាពក្នុង Word»។'
+          : 'On Vercel / GitHub: Please enter a Gemini API Key or switch to Embed Images mode.';
+      }
+
       setImages((prev) =>
         prev.map((img) =>
           img.id === id
             ? {
                 ...img,
                 ocrStatus: 'error',
-                ocrError:
-                  err?.code === 'RATE_LIMIT'
-                    ? (isKm
-                        ? `កម្រិត AI Free Tier បានពេញបណ្តោះអាសន្ន (${err.retrySeconds || 25}s)។ សូមរង់ចាំបន្តិច ឬបញ្ចូល Gemini API Key ឥតគិតថ្លៃ។`
-                        : `AI Rate limit reached (${err.retrySeconds || 25}s). Please wait or enter your Gemini API Key.`)
-                    : err?.code === 'NO_GEMINI_API_KEY'
-                    ? (isKm
-                        ? 'នៅលើ GitHub Pages៖ សូមបញ្ចូល Gemini API Key ឬប្តូរទៅរបៀប «បង្កប់រូបភាពដើមក្នុង Word»'
-                        : 'On GitHub Pages: Please enter a Gemini API Key or switch to Embed Images mode')
-                    : (err.message || 'Error running OCR'),
+                ocrError: userFriendlyError,
               }
             : img
         )
@@ -452,6 +463,17 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Gemini API Key Button */}
+            <button
+              id="btn-image-api-key"
+              onClick={() => setIsApiKeyModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-colors cursor-pointer shadow-2xs"
+              title={isKm ? 'កំណត់ Gemini API Key (សម្រាប់ GitHub Pages / Vercel)' : 'Gemini API Key Settings'}
+            >
+              <Key className="w-3.5 h-3.5 text-blue-600" />
+              <span>{isKm ? 'Gemini API Key' : 'API Key'}</span>
+            </button>
+
             {/* Page Setup Button (Opens Modal) */}
             <button
               id="btn-image-page-setup"

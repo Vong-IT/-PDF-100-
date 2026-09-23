@@ -125,8 +125,9 @@ async function performClientGeminiOcr(
   const promptText = `Transcribe the text, font styles ([muol], **bold**, *italic*), document layout (header-layout, signature-layout, tables), and any shapes/seals (:::shape) from this page (Page ${pageNumber}) with strict Khmer typography fidelity ('អក្សរមិនខុសដៃជើង') and visual shape style/color preservation for lossless Microsoft Word conversion.`;
 
   const candidateModels = [
-    'gemini-3.1-flash-lite',
+    'gemini-3.6-flash',
     'gemini-3.8-flash',
+    'gemini-3.1-flash-lite',
     'gemini-flash-latest',
   ];
 

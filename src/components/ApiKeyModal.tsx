@@ -22,6 +22,12 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   const [showKey, setShowKey] = useState<boolean>(false);
   const [isSaved, setIsSaved] = useState<boolean>(false);
 
+  const trimmedKey = apiKey.trim();
+  const isValidFormat =
+    trimmedKey.length >= 25 &&
+    (trimmedKey.startsWith('AQ.') || trimmedKey.startsWith('AIzaSy') || /^[A-Za-z0-9_.-]+$/.test(trimmedKey));
+  const isSuspicious = trimmedKey.length > 0 && trimmedKey.length < 20;
+
   if (!isOpen) return null;
 
   const handleSave = () => {
@@ -90,8 +96,14 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full pl-3.5 pr-20 py-2.5 bg-slate-50 border border-slate-300 focus:border-blue-500 focus:bg-white rounded-xl text-xs sm:text-sm font-mono text-slate-800 outline-none transition-all"
+                placeholder="AQ.Ab8... ឬ AIzaSy..."
+                className={`w-full pl-3.5 pr-20 py-2.5 bg-slate-50 border rounded-xl text-xs sm:text-sm font-mono text-slate-800 outline-none transition-all ${
+                  isValidFormat
+                    ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
+                    : isSuspicious
+                    ? 'border-amber-400 focus:border-amber-500 bg-amber-50/30'
+                    : 'border-slate-300 focus:border-blue-500 focus:bg-white'
+                }`}
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 <button
@@ -104,6 +116,21 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Validation Message */}
+            {isSuspicious && (
+              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800">
+                <span>⚠️ {isKm ? 'កូដ API Key ខ្លីពេក សូមពិនិត្យមើល និងចម្លងមកដាក់ឱ្យពេញលេញ' : 'API Key appears incomplete, please copy the full key.'}</span>
+              </div>
+            )}
+
+            {isValidFormat && (
+              <div className="mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>{isKm ? 'ទម្រង់ Gemini API Key ត្រឹមត្រូវ' : 'Valid Gemini API Key format'}</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500">
               <span className="flex items-center gap-1 text-emerald-600">
                 <ShieldCheck className="w-3.5 h-3.5" />

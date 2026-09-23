@@ -83,6 +83,93 @@ export function canvasToBlob(
 }
 
 /**
+ * Clean Khmer text by repairing disjointed vowels, subscripts, and artificial spaces.
+ */
+export function cleanKhmerText(text: string): string {
+  if (!text) return '';
+  let res = text;
+
+  // Multiple passes to cleanly catch chained disjointed characters
+  for (let pass = 0; pass < 3; pass++) {
+    res = res
+      // Remove any space around Khmer coeng (\u17D2)
+      .replace(/[\s\u00A0\u200B]*\u17D2[\s\u00A0\u200B]*/g, '\u17D2')
+      // Remove space between base consonant/subscript and dependent vowel or diacritic
+      .replace(/([\u1780-\u17D3])[\s\u00A0\u200B]+([\u17B6-\u17D3])/g, '$1$2')
+      // Remove space between dependent vowel and final consonant / bantoc (e.g. ា + ក់, ិ + ង)
+      .replace(/([\u17B6-\u17C5])[\s\u00A0\u200B]+([\u1780-\u17A2][\u17C6-\u17CB]?)/g, '$1$2')
+      // Remove space before bantoc, reahmuk, samyok, etc.
+      .replace(/([\u1780-\u17D3])[\s\u00A0\u200B]+([\u17C6-\u17D1])/g, '$1$2')
+      // Fix dotted circle \u25CC or unknown replacement if attached to vowel
+      .replace(/\u25CC[\s\u00A0\u200B]*([\u17B6-\u17D3])/g, '$1')
+      // Remove space between consecutive Khmer vowels/signs
+      .replace(/([\u17B6-\u17D3])[\s\u00A0\u200B]+([\u17B6-\u17D3])/g, '$1$2')
+      // Fix common Khmer administrative words broken by PDF fonts
+      .replace(/ថ្ន\s*ា\s*ក់/g, 'ថ្នាក់')
+      .replace(/មុខ\s*វិជ្ជ\s*ា/g, 'មុខវិជ្ជា')
+      .replace(/វិជ្ជ\s*ា/g, 'វិជ្ជា')
+      .replace(/វិធី\s*សាស្ត\s*្រ/g, 'វិធីសាស្ត្រ')
+      .replace(/សាស្ត\s*្រ/g, 'សាស្ត្រ')
+      .replace(/យុទ\s*្\s*ធ/g, 'យុទ្ធ')
+      .replace(/បញ្ញ\s*ា\s*ប/g, 'បញ្ញាប')
+      .replace(/សម្\s*ប\s*ទា/g, 'សម្បទា')
+      .replace(/បំណិន\s*ស\s*ម្\s*ប\s*ទា/g, 'បំណិនសម្បទា')
+      .replace(/ចរិយា\s*ស\s*ម្\s*ប\s*ទា/g, 'ចរិយាសម្បទា')
+      .replace(/វត្ថុ\s*បំណង/g, 'វត្ថុបំណង')
+      .replace(/កាល\s*បរិច្\s*ឆេទ/g, 'កាលបរិច្ឆេទ');
+  }
+
+  // Normalize excessive spaces
+  return res.replace(/[ \t]{2,}/g, ' ');
+}
+
+/**
+ * Join an array of TextItem objects intelligently:
+ * Keeps Khmer sub-clusters, vowels, and coeng joined without spaces,
+ * while respecting actual inter-word gaps.
+ */
+function joinTextItems(items: Array<{ str: string; x: number; width: number; fontSize?: number }>): string {
+  if (items.length === 0) return '';
+  let result = items[0].str;
+
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1];
+    const curr = items[i];
+    const gap = curr.x - (prev.x + prev.width);
+
+    const prevChar = prev.str.trim().slice(-1);
+    const nextChar = curr.str.trim().charAt(0);
+
+    const isKhmerPrev = /[\u1780-\u17D3]/.test(prevChar);
+    const isKhmerNext = /[\u1780-\u17D3]/.test(nextChar);
+    const isSubscriptOrVowel = /[\u17B6-\u17D3]/.test(nextChar) || prevChar === '\u17D2';
+    const isVowelBeforeFinal = /[\u17B6-\u17C5]/.test(prevChar);
+
+    if (isSubscriptOrVowel || isVowelBeforeFinal) {
+      // Dependent vowel or subscript must stick to previous character
+      result += curr.str;
+    } else if (isKhmerPrev && isKhmerNext) {
+      // In Khmer script, inter-word spaces are only present when the gap is distinct
+      const spaceThreshold = Math.max(4.5, (curr.fontSize || 12) * 0.35);
+      if (gap > spaceThreshold) {
+        result += ' ' + curr.str;
+      } else {
+        result += curr.str;
+      }
+    } else {
+      // Non-Khmer text or punctuation
+      if (gap > 2) {
+        result += ' ' + curr.str;
+      } else {
+        result += curr.str;
+      }
+    }
+  }
+
+  return cleanKhmerText(result);
+}
+
+/**
  * Extract native embedded text from a PDF page while preserving
  * Khmer font styles (Muol, bold), alignments, and administrative layout blocks.
  */
@@ -169,7 +256,7 @@ export async function extractNativePageText(pdfDoc: any, pageNumber: number): Pr
       const maxX = lastItem.x + lastItem.width;
       const lineWidth = maxX - minX;
       const lineCenter = (minX + maxX) / 2;
-      const fullLineStr = lineItems.map((it) => it.str).join(' ').trim();
+      const fullLineStr = joinTextItems(lineItems);
 
       // Check if line has items split between far-left and far-right (2-column layout)
       const leftCluster = lineItems.filter((it) => it.x < pageWidth * 0.45);
@@ -177,8 +264,8 @@ export async function extractNativePageText(pdfDoc: any, pageNumber: number): Pr
 
       if (leftCluster.length > 0 && rightCluster.length > 0 && leftCluster.length + rightCluster.length === lineItems.length) {
         // Two-column administrative line!
-        const leftStr = leftCluster.map((it) => it.str).join(' ').trim();
-        const rightStr = rightCluster.map((it) => it.str).join(' ').trim();
+        const leftStr = joinTextItems(leftCluster);
+        const rightStr = joinTextItems(rightCluster);
 
         if (!inHeaderLayout) {
           inHeaderLayout = true;
@@ -206,19 +293,21 @@ export async function extractNativePageText(pdfDoc: any, pageNumber: number): Pr
 
       // Check for table row (multiple large horizontal gaps between words)
       const columnCells: string[] = [];
-      let currentCell = lineItems[0].str;
+      let currentCellItems: typeof lineItems = [lineItems[0]];
       for (let i = 1; i < lineItems.length; i++) {
         const prev = lineItems[i - 1];
         const curr = lineItems[i];
         const gap = curr.x - (prev.x + prev.width);
         if (gap > 28) {
-          columnCells.push(currentCell.trim());
-          currentCell = curr.str;
+          columnCells.push(joinTextItems(currentCellItems));
+          currentCellItems = [curr];
         } else {
-          currentCell += ' ' + curr.str;
+          currentCellItems.push(curr);
         }
       }
-      columnCells.push(currentCell.trim());
+      if (currentCellItems.length > 0) {
+        columnCells.push(joinTextItems(currentCellItems));
+      }
 
       if (columnCells.length >= 3) {
         // Format as Markdown table row

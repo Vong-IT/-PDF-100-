@@ -299,6 +299,13 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
             ? 'នៅលើ GitHub Pages៖ សូមភ្ជាប់ Gemini API Key ឥតគិតថ្លៃដើម្បីប្រើប្រាស់ AI OCR ឬចុចលើ «ស្រង់អក្សរផ្ទាល់ពី PDF (Native)» ដើម្បីបម្លែងជា Word & Excel ដោយឥតគិតថ្លៃ ១០០%។'
             : 'On GitHub Pages: Please connect a free Gemini API Key or switch to Native PDF extraction for 100% free conversion.'
         );
+      } else if (err?.code === 'RATE_LIMIT') {
+        setIsApiKeyModalOpen(true);
+        setErrorMessage(
+          isKm
+            ? `កម្រិត AI Free Tier បានពេញបណ្តោះអាសន្ន (${err.retrySeconds || 25} វិនាទី)។ សូមរង់ចាំបន្តិច រួចចុចព្យាយាមម្តងទៀត ឬភ្ជាប់ Gemini API Key ផ្ទាល់ខ្លួនរបស់អ្នក (ឥតគិតថ្លៃ)។`
+            : `AI Free Tier Rate limit reached (${err.retrySeconds || 25}s). Please wait a moment or enter your own free Gemini API key.`
+        );
       } else {
         setErrorMessage(err.message || 'Error communicating with AI OCR engine');
       }
@@ -405,15 +412,23 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
             percent: Math.round((completed / totalPages) * 100),
           }));
 
-          // Brief delay between calls
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          // Gentle pause between calls to avoid bursting the 20 RPM free tier rate limit
+          await new Promise((resolve) => setTimeout(resolve, 1200));
         } catch (err: any) {
           console.error(`Error on page ${p}:`, err);
-          if (err?.code === 'NO_GEMINI_API_KEY' || err?.message === 'NO_GEMINI_API_KEY') {
+          if (
+            err?.code === 'NO_GEMINI_API_KEY' ||
+            err?.message === 'NO_GEMINI_API_KEY' ||
+            err?.code === 'RATE_LIMIT'
+          ) {
             cancelBatchRef.current = true;
             setIsApiKeyModalOpen(true);
             setErrorMessage(
-              isKm
+              err?.code === 'RATE_LIMIT'
+                ? (isKm
+                    ? `កម្រិត AI Free Tier បានពេញបណ្តោះអាសន្ន (${err.retrySeconds || 25}s)។ សូមរង់ចាំបន្តិច ឬភ្ជាប់ Gemini API Key ឥតគិតថ្លៃដើម្បីដំណើរការបន្ត។`
+                    : `AI Free Tier Rate limit reached (${err.retrySeconds || 25}s). Please wait or enter your Gemini API key.`)
+                : isKm
                 ? 'នៅលើ GitHub Pages៖ សូមភ្ជាប់ Gemini API Key ឥតគិតថ្លៃដើម្បីដំណើរការ AI OCR ឬចុចលើ «ស្រង់អក្សរផ្ទាល់ពី PDF (Native)» ដើម្បីបម្លែងដោយមិនបាច់ប្រើ Key។'
                 : 'On GitHub Pages: Please connect a free Gemini API Key or switch to Native PDF extraction.'
             );

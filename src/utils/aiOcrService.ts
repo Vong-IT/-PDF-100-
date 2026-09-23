@@ -125,9 +125,9 @@ async function performClientGeminiOcr(
   const promptText = `Transcribe the text, font styles ([muol], **bold**, *italic*), document layout (header-layout, signature-layout, tables), and any shapes/seals (:::shape) from this page (Page ${pageNumber}) with strict Khmer typography fidelity ('អក្សរមិនខុសដៃជើង') and visual shape style/color preservation for lossless Microsoft Word conversion.`;
 
   const candidateModels = [
-    'gemini-2.5-flash',
-    'gemini-1.5-flash',
-    'gemini-2.0-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
   ];
 
   let lastError: any = null;
@@ -221,9 +221,47 @@ export async function extractKhmerOcr(params: {
             source: 'backend',
           };
         }
+      } else {
+        const errPayload = await response.json().catch(() => null);
+        if (response.status === 429 || errPayload?.isRateLimit) {
+          // If user configured a personal API key, seamlessly switch to their key!
+          const userApiKey = getStoredGeminiApiKey();
+          if (userApiKey) {
+            console.log('[OCR Service] Backend hit rate limit, seamlessly trying with personal Gemini API Key...');
+            const result = await performClientGeminiOcr(userApiKey, cleanBase64, sanitizedMime, pageNumber);
+            return {
+              text: result.text,
+              modelUsed: result.modelUsed,
+              source: 'client-gemini',
+            };
+          }
+
+          const rateErr: any = new Error(
+            errPayload?.error ||
+              'កម្រិតស្នើសុំ AI ឥតគិតថ្លៃបានដល់កម្រិតកំណត់ (429 Rate Limit)។ សូមរង់ចាំបន្តិច ឬបញ្ចូល Gemini API Key ផ្ទាល់ខ្លួនរបស់អ្នក។'
+          );
+          rateErr.code = 'RATE_LIMIT';
+          rateErr.retrySeconds = errPayload?.retrySeconds || 25;
+          throw rateErr;
+        }
+
+        if (response.status === 503 || errPayload?.isHighDemand) {
+          const demandErr: any = new Error(
+            errPayload?.error || 'ម៉ូដែល AI កំពុងមានអ្នកប្រើប្រាស់ច្រើន (503 High Demand)។ សូមព្យាយាមម្តងទៀត។'
+          );
+          demandErr.code = 'HIGH_DEMAND';
+          throw demandErr;
+        }
+
+        if (errPayload?.error) {
+          throw new Error(errPayload.error);
+        }
       }
-    } catch (_backendErr) {
-      console.warn('[OCR Service] Backend API unreachable, falling back to client-side Gemini if key is provided...');
+    } catch (backendErr: any) {
+      if (backendErr?.code === 'RATE_LIMIT' || backendErr?.code === 'HIGH_DEMAND') {
+        throw backendErr;
+      }
+      console.warn('[OCR Service] Backend API error, checking client-side Gemini key fallback...', backendErr);
     }
   }
 

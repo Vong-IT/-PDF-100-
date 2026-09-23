@@ -232,7 +232,11 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
       );
     } catch (err: any) {
       console.error('Image OCR error:', err);
-      if (err?.code === 'NO_GEMINI_API_KEY' || err?.message === 'NO_GEMINI_API_KEY') {
+      if (
+        err?.code === 'NO_GEMINI_API_KEY' ||
+        err?.message === 'NO_GEMINI_API_KEY' ||
+        err?.code === 'RATE_LIMIT'
+      ) {
         setIsApiKeyModalOpen(true);
       }
       setImages((prev) =>
@@ -242,7 +246,11 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
                 ...img,
                 ocrStatus: 'error',
                 ocrError:
-                  err?.code === 'NO_GEMINI_API_KEY'
+                  err?.code === 'RATE_LIMIT'
+                    ? (isKm
+                        ? `កម្រិត AI Free Tier បានពេញបណ្តោះអាសន្ន (${err.retrySeconds || 25}s)។ សូមរង់ចាំបន្តិច ឬបញ្ចូល Gemini API Key ឥតគិតថ្លៃ។`
+                        : `AI Rate limit reached (${err.retrySeconds || 25}s). Please wait or enter your Gemini API Key.`)
+                    : err?.code === 'NO_GEMINI_API_KEY'
                     ? (isKm
                         ? 'នៅលើ GitHub Pages៖ សូមបញ្ចូល Gemini API Key ឬប្តូរទៅរបៀប «បង្កប់រូបភាពដើមក្នុង Word»'
                         : 'On GitHub Pages: Please enter a Gemini API Key or switch to Embed Images mode')
@@ -254,7 +262,7 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
     }
   };
 
-  // Run AI OCR on pending images in sequence
+  // Run AI OCR on pending images in sequence with gentle throttle
   const runBatchOcr = async () => {
     if (images.length === 0 || isBatchOcrRunning) return;
 
@@ -268,6 +276,10 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
     for (let i = 0; i < listToRun.length; i++) {
       setBatchProgress({ current: i + 1, total: listToRun.length });
       await runOcrOnImage(listToRun[i].id);
+      // Gentle pause to stay well within free tier RPM limits
+      if (i < listToRun.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
     }
 
     setIsBatchOcrRunning(false);

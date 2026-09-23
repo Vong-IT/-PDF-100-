@@ -322,6 +322,23 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
   } catch (error: any) {
     console.error("OCR error:", error);
     const errMsg = error?.message || (typeof error === "object" ? JSON.stringify(error) : String(error));
+
+    const isRateLimit =
+      error?.status === 429 ||
+      error?.code === 429 ||
+      errMsg.includes("429") ||
+      errMsg.includes("RESOURCE_EXHAUSTED") ||
+      errMsg.includes("Quota exceeded") ||
+      errMsg.includes("rate-limit") ||
+      errMsg.includes("billing details") ||
+      errMsg.includes("quota");
+
+    let retrySeconds = 25;
+    const match = errMsg.match(/retry in ([0-9.]+)s/i) || errMsg.match(/retryDelay"?:\s*"([0-9]+)s"/i);
+    if (match) {
+      retrySeconds = Math.ceil(parseFloat(match[1]));
+    }
+
     const isHighDemand =
       error?.status === 503 ||
       error?.code === 503 ||
@@ -329,12 +346,22 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
       errMsg.includes("high demand") ||
       errMsg.includes("UNAVAILABLE");
 
+    if (isRateLimit) {
+      return res.status(429).json({
+        success: false,
+        isRateLimit: true,
+        retrySeconds,
+        error: `កម្រិតប្រើប្រាស់ AI Free Tier បានដល់កម្រិតកំណត់ (429 Rate Limit)។ សូមរង់ចាំ ${retrySeconds} វិនាទី រួចចុច 'ព្យាយាមម្តងទៀត' ឬភ្ជាប់ Gemini API Key ផ្ទាល់ខ្លួនរបស់អ្នក (ឥតគិតថ្លៃ) ដើម្បីបម្លែងដោយគ្មានដែនកំណត់។`,
+        englishError: `Free tier API quota limit reached (429 Rate Limit). Please wait ${retrySeconds}s and try again, or connect your own free Gemini API key.`,
+      });
+    }
+
     res.status(isHighDemand ? 503 : 500).json({
       success: false,
+      isHighDemand: !!isHighDemand,
       error: isHighDemand
         ? "ម៉ូដែល AI កំពុងមានអ្នកប្រើប្រាស់ច្រើនក្នុងពេលដំណាលគ្នា (503 High Demand)។ សូមចុច 'ព្យាយាមម្តងទៀត' ឬប្រើប្រាស់ទាញយកអត្ថបទដើមក្នុងឯកសារ (Native Text)។"
         : (error.message || "Failed to process OCR transcription"),
-      isHighDemand: !!isHighDemand,
     });
   }
 });

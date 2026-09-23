@@ -1,14 +1,23 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import muhammara from "muhammara";
 import dotenv from "dotenv";
 
 dotenv.config();
 
+// Global error handlers to prevent unexpected process crashes in production
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+});
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // High body limits for handling PDF files & high-res canvas exports
 app.use(express.json({ limit: "60mb" }));
@@ -134,11 +143,11 @@ async function generateOCRWithRetry(
   promptText: string,
   systemPrompt: string
 ): Promise<{ text: string; modelUsed: string }> {
-  // Candidate models: start with gemini-3.8-flash, fall back to gemini-flash-latest and gemini-3.1-flash-lite if 503 high-demand occurs
+  // Candidate models: start with gemini-3.1-flash-lite (fastest, high quota availability), fall back to gemini-3.8-flash & gemini-flash-latest
   const candidateModels = [
+    "gemini-3.1-flash-lite",
     "gemini-3.8-flash",
     "gemini-flash-latest",
-    "gemini-3.1-flash-lite",
   ];
 
   let lastError: any = null;
@@ -174,34 +183,45 @@ async function generateOCRWithRetry(
       } catch (err: any) {
         lastError = err;
         const errMsg = err?.message || (typeof err === "object" ? JSON.stringify(err) : String(err));
-        const is503OrRateLimit =
+        const isQuotaOrRateLimit =
+          err?.status === 429 ||
+          err?.code === 429 ||
+          errMsg.includes("429") ||
+          errMsg.includes("RESOURCE_EXHAUSTED") ||
+          errMsg.includes("Quota exceeded") ||
+          errMsg.includes("rate-limit") ||
+          errMsg.includes("billing details");
+
+        const is503Unavailable =
           err?.status === 503 ||
           err?.code === 503 ||
           errMsg.includes("503") ||
           errMsg.includes("UNAVAILABLE") ||
-          errMsg.includes("high demand") ||
-          errMsg.includes("RESOURCE_EXHAUSTED") ||
-          errMsg.includes("429");
+          errMsg.includes("high demand");
 
-        if (is503OrRateLimit) {
-          console.warn(`[OCR Retry] Model ${model} attempt ${attempt + 1} hit 503/capacity limit. Retrying...`);
+        if (isQuotaOrRateLimit) {
+          console.warn(`[OCR Model Skip] Model ${model} hit quota/rate limit. Advancing immediately to next candidate model...`);
+          // Immediately break to next candidate model without waiting
+          break;
+        }
+
+        if (is503Unavailable) {
+          console.warn(`[OCR Retry] Model ${model} attempt ${attempt + 1} hit 503/high-demand. Retrying...`);
           if (attempt === 0) {
-            // Wait 1.2s before retry
-            await new Promise((resolve) => setTimeout(resolve, 1200));
+            await new Promise((resolve) => setTimeout(resolve, 800));
             continue;
           }
-          // Move to next candidate model
           break;
-        } else {
-          // If non-transient error, rethrow immediately
-          console.error(`[OCR Error] Non-retriable error with model ${model}:`, err);
-          throw err;
         }
+
+        console.error(`[OCR Error] Non-retriable error with model ${model}:`, err);
+        // Try next candidate model before giving up
+        break;
       }
     }
   }
 
-  throw lastError || new Error("AI service is currently experiencing high demand. Please try again.");
+  throw lastError || new Error("AI OCR service is currently experiencing high demand. Please try again or switch to 'Embed Original Images' mode.");
 }
 
 // 3. Gemini AI Khmer OCR & Layout Preservation
@@ -213,7 +233,8 @@ app.post("/api/pdf/ocr-khmer", async (req, res) => {
       return res.status(400).json({ error: "No image data provided for OCR" });
     }
 
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
+    const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, "").trim();
+    const sanitizedMime = mimeType && mimeType.startsWith("image/") ? mimeType : "image/jpeg";
     const ai = getGeminiClient();
 
     const systemPrompt = `You are a world-class document transcription and OCR specialist with native mastery of the Khmer language (ភាសាខ្មែរ), complex Khmer typography, subscript consonants (ជើងអក្សរ - cheung), independent vowels, bantoc, reahmuk, kakabat, and Khmer punctuation (។ , ៕).
@@ -290,7 +311,7 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
 
     const promptText = `Transcribe the text, font styles ([muol], **bold**, *italic*), document layout (header-layout, signature-layout, tables), and any shapes/seals (:::shape) from this page (Page ${pageNumber || 1}) with strict Khmer typography fidelity ('អក្សរមិនខុសដៃជើង') and visual shape style/color preservation for lossless Microsoft Word conversion.`;
 
-    const result = await generateOCRWithRetry(ai, cleanBase64, mimeType, promptText, systemPrompt);
+    const result = await generateOCRWithRetry(ai, cleanBase64, sanitizedMime, promptText, systemPrompt);
 
     res.json({
       success: true,
@@ -319,24 +340,56 @@ CRITICAL ACCURACY, FONT STYLE & WORD LAYOUT INSTRUCTIONS:
 });
 
 async function startServer() {
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  const distPath = path.join(process.cwd(), "dist");
+  const distIndexExists = fs.existsSync(path.join(distPath, "index.html"));
+
+  // Check whether we should run in production mode:
+  // 1. NODE_ENV === 'production'
+  // 2. Running in Google Cloud Run (K_SERVICE or K_REVISION environment variables set)
+  // 3. Built dist exists AND we are not explicitly running npm run dev
+  const isExplicitDev = process.env.NODE_ENV === "development" || process.env.npm_lifecycle_event === "dev";
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    Boolean(process.env.K_SERVICE) ||
+    Boolean(process.env.K_REVISION) ||
+    (distIndexExists && !isExplicitDev);
+
+  if (isProduction && distIndexExists) {
+    console.log(`[Production] Serving static files from: ${distPath}`);
+    app.use(express.static(distPath));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  } else {
+    console.log("[Development] Initializing Vite middleware mode");
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`PDF Studio Server running on http://0.0.0.0:${PORT}`);
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`PDF Studio Server running on http://0.0.0.0:${PORT} (mode: ${isProduction && distIndexExists ? "production" : "development"})`);
   });
+
+  // Handle graceful termination signals from Cloud Run container manager
+  const shutdown = (signal: string) => {
+    console.log(`${signal} signal received: closing HTTP server...`);
+    server.close(() => {
+      console.log("HTTP server closed.");
+      process.exit(0);
+    });
+    // Force close if it takes too long
+    setTimeout(() => {
+      console.error("Forcing shutdown after timeout");
+      process.exit(1);
+    }, 5000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer();

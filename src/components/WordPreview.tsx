@@ -12,7 +12,10 @@ import {
   Printer,
   ChevronDown,
   Sliders,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { exportToExcelFile } from '../utils/excelExport';
+import { triggerDownload } from '../utils/pdfHelper';
 import {
   parseDocumentContent,
   parseInlineRuns,
@@ -36,6 +39,7 @@ interface WordPreviewProps {
   options: WordExportOptions;
   onOptionsChange: (newOpts: Partial<WordExportOptions>) => void;
   onDownloadDocx: () => void;
+  onDownloadExcel?: () => void;
   isDownloading?: boolean;
 }
 
@@ -45,6 +49,7 @@ export const WordPreview: React.FC<WordPreviewProps> = ({
   options,
   onOptionsChange,
   onDownloadDocx,
+  onDownloadExcel,
   isDownloading = false,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -215,6 +220,19 @@ export const WordPreview: React.FC<WordPreviewProps> = ({
             <Download className="w-3.5 h-3.5" />
             <span>{isDownloading ? (isKm ? 'កំពុងបង្កើត...' : 'Generating...') : isKm ? 'ទាញយក .DOCX' : 'Download .DOCX'}</span>
           </button>
+
+          {/* Download Excel Button */}
+          {onDownloadExcel && (
+            <button
+              onClick={onDownloadExcel}
+              disabled={!rawText}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+              title={isKm ? 'ទាញយកតារាង និងទិន្នន័យជាឯកសារ Excel (.xlsx)' : 'Download Excel (.xlsx)'}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>{isKm ? 'ទាញយក .XLSX' : 'Download .XLSX'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1220,6 +1238,27 @@ const RenderBlock: React.FC<RenderBlockProps> = ({
 
     return (
       <div className={`my-4 overflow-x-auto rounded-lg shadow-2xs ${tableBorderClass}`} style={{ borderColor }}>
+        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50/90 border-b border-slate-200 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-slate-700">
+            <TableIcon className="w-3.5 h-3.5 text-blue-600" />
+            <span>{isKm ? 'តារាងទិន្នន័យ' : 'Data Table'}</span>
+            <span className="text-[10px] font-normal text-slate-500 font-mono">
+              ({block.rows.length} {isKm ? 'ជួរដេក' : 'rows'} × {block.headers.length} {isKm ? 'ជួរឈរ' : 'cols'})
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              const tsvMarkdown = `| ${block.headers.join(' | ')} |\n| ${block.headers.map(() => '---').join(' | ')} |\n` + block.rows.map((r) => `| ${r.join(' | ')} |`).join('\n');
+              const res = exportToExcelFile(tsvMarkdown, 'តារាងទិន្នន័យ.xlsx');
+              triggerDownload(res.blob, res.fileName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            }}
+            className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md cursor-pointer transition-colors shadow-2xs"
+            title={isKm ? 'ទាញយកតារាងនេះជាឯកសារ Excel (.xlsx)' : 'Export this table to Excel (.xlsx)'}
+          >
+            <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+            <span>{isKm ? 'ទាញយកជា Excel (.xlsx)' : 'Export Table to Excel'}</span>
+          </button>
+        </div>
         <table className="w-full border-collapse text-left" style={{ fontSize: `${fontSizePt}pt` }}>
           <thead>
             <tr

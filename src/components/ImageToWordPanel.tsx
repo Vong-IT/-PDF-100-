@@ -19,10 +19,13 @@ import {
   Layers,
   FileText,
   AlertCircle,
+  AlertTriangle,
+  RotateCcw,
   CheckCircle2,
   Image as ImageIcon,
   Edit3,
   BookOpen,
+  FileSpreadsheet,
 } from 'lucide-react';
 import type { Language } from '../types';
 import {
@@ -31,6 +34,7 @@ import {
   WordExportOptions,
   ImageDocxItem,
 } from '../utils/docxExport';
+import { exportToExcelFile } from '../utils/excelExport';
 import { WordPreview } from './WordPreview';
 import { WordPageSetupModal } from './WordPageSetupModal';
 import { createSampleKhmerImage } from '../utils/sampleImage';
@@ -221,18 +225,28 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
       } catch (_e) {
         throw new Error(
           isKm
-            ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើអ្នកកំពុងដំណើរការលើ GitHub Pages សូមដំណើរការតាមរយៈ Node.js (npm run dev ឬ server)។'
-            : 'Cannot connect to backend API. If hosting on static GitHub Pages, run via Node.js server (npm run dev/start).'
+            ? 'មិនអាចតភ្ជាប់ទៅកាន់ម៉ាស៊ីនបម្រើ (Backend API) បានទេ។ ប្រសិនបើលោកអ្នកកំពុងប្រើប្រាស់លើ GitHub Pages (Hosting ឋិតិវន្ត) សូមប្តូរទៅប្រើរបៀប «បង្កប់រូបភាពដើមក្នុង Word» ដើម្បីទាញយកឯកសារ Word ដោយជោគជ័យ ១០០%។'
+            : 'Cannot connect to backend API. If hosting on static GitHub Pages, please switch to "Embed Original Images" mode to compile into Word (.docx) with 100% success.'
         );
       }
       if (!response.ok || !data?.success) {
-        throw new Error(data?.error || 'Failed to extract text from image');
+        let msg = data?.error || 'Failed to extract text from image';
+        if (msg.includes('503') || msg.includes('High Demand') || msg.includes('high demand')) {
+          msg = isKm
+            ? 'ម៉ាស៊ីន AI កំពុងមានអ្នកប្រើប្រាស់ច្រើន (High Demand)។ សូមចុច «សាកល្បងម្តងទៀត» ឬប្តូរទៅរបៀប «បង្កប់រូបភាពក្នុង Word»។'
+            : 'AI service is busy. Please click Retry or switch to Embed mode.';
+        } else if (msg.includes('quota') || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+          msg = isKm
+            ? 'កូតា AI ប្រើប្រាស់លើសកម្រិតបណ្តោះអាសន្ន។ សូមចុច «សាកល្បងម្តងទៀត» ឬប្តូរទៅរបៀប «បង្កប់រូបភាពក្នុង Word» ដើម្បីទាញយកឯកសារ Word ភ្លាមៗ!'
+            : 'AI quota temporarily limited. Please retry or switch to Embed mode.';
+        }
+        throw new Error(msg);
       }
 
       const extracted = data.text || '';
       setImages((prev) =>
         prev.map((img) =>
-          img.id === id ? { ...img, ocrStatus: 'success', ocrText: extracted } : img
+          img.id === id ? { ...img, ocrStatus: 'success', ocrText: extracted, ocrError: undefined } : img
         )
       );
     } catch (err: any) {
@@ -247,16 +261,20 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
     }
   };
 
-  // Run AI OCR on all images in sequence
+  // Run AI OCR on pending images in sequence
   const runBatchOcr = async () => {
     if (images.length === 0 || isBatchOcrRunning) return;
 
-    setIsBatchOcrRunning(true);
-    setBatchProgress({ current: 0, total: images.length });
+    // Prioritize idle or error images first
+    const targetImages = images.filter((img) => img.ocrStatus !== 'success');
+    const listToRun = targetImages.length > 0 ? targetImages : images;
 
-    for (let i = 0; i < images.length; i++) {
-      setBatchProgress({ current: i + 1, total: images.length });
-      await runOcrOnImage(images[i].id);
+    setIsBatchOcrRunning(true);
+    setBatchProgress({ current: 0, total: listToRun.length });
+
+    for (let i = 0; i < listToRun.length; i++) {
+      setBatchProgress({ current: i + 1, total: listToRun.length });
+      await runOcrOnImage(listToRun[i].id);
     }
 
     setIsBatchOcrRunning(false);
@@ -367,6 +385,37 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
       alert((isKm ? 'បរាជ័យក្នុងការបង្កើតឯកសារ Word: ' : 'Failed to export Word document: ') + err.message);
     } finally {
       setIsExportingWord(false);
+    }
+  };
+
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false);
+
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
+    const textToExport = rawEditableText.trim();
+    if (!textToExport) {
+      alert(
+        isKm
+          ? 'សូមចុច "ស្រង់អក្សររូបភាព" ជាមុនសិនដើម្បីបង្កើតទិន្នន័យ Excel!'
+          : 'Please extract text from images via OCR first before exporting to Excel!'
+      );
+      return;
+    }
+
+    setIsExportingExcel(true);
+    try {
+      const titleName = wordOptions.title || 'ឯកសាររូបភាព_ទិន្នន័យ';
+      const excelResult = exportToExcelFile(textToExport, `${titleName}.xlsx`);
+      triggerDownload(
+        excelResult.blob,
+        excelResult.fileName,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+    } catch (err: any) {
+      console.error('Excel export error:', err);
+      alert((isKm ? 'បរាជ័យក្នុងការបង្កើតឯកសារ Excel: ' : 'Failed to export Excel spreadsheet: ') + err.message);
+    } finally {
+      setIsExportingExcel(false);
     }
   };
 
@@ -627,10 +676,30 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
                             </span>
                           )}
                           {img.ocrStatus === 'error' && (
-                            <span className="text-red-600 flex items-center gap-1 font-medium">
-                              <AlertCircle className="w-2.5 h-2.5" />
-                              {isKm ? 'បរាជ័យ' : 'Failed'}
-                            </span>
+                            <div className="flex flex-col gap-1 mt-0.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-red-600 flex items-center gap-1 font-bold text-[10px]">
+                                  <AlertCircle className="w-2.5 h-2.5 text-red-500 shrink-0" />
+                                  {isKm ? 'បរាជ័យ' : 'Failed'}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    runOcrOnImage(img.id);
+                                  }}
+                                  className="px-1.5 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded cursor-pointer inline-flex items-center gap-1 transition-colors shadow-2xs"
+                                  title={isKm ? 'សាកល្បងស្រង់អក្សរម្តងទៀត' : 'Retry OCR'}
+                                >
+                                  <RotateCcw className="w-2.5 h-2.5" />
+                                  <span>{isKm ? 'សាកល្បងម្តងទៀត' : 'Retry'}</span>
+                                </button>
+                              </div>
+                              {img.ocrError && (
+                                <p className="text-[10px] text-red-700 bg-red-50/80 p-1.5 rounded-md border border-red-200/70 leading-relaxed font-normal">
+                                  {img.ocrError}
+                                </p>
+                              )}
+                            </div>
                           )}
                           {img.ocrStatus === 'idle' && conversionMode === 'ocr' && (
                             <button
@@ -684,6 +753,32 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Helpful Banner on OCR Error */}
+            {conversionMode === 'ocr' && images.some((img) => img.ocrStatus === 'error') && (
+              <div className="mt-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl text-xs text-amber-950 space-y-2 shadow-2xs">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 flex-1 min-w-0">
+                    <p className="font-bold text-[11px] text-amber-900">
+                      {isKm ? 'ព័ត៌មានជំនួយ ៖ មិនអាចស្រង់អក្សរ AI បាន?' : 'Tip: OCR transcription issue?'}
+                    </p>
+                    <p className="text-[10px] text-amber-800 leading-relaxed">
+                      {isKm
+                        ? 'ប្រសិនបើអ្នកកំពុងប្រើលើ GitHub Pages ឬ AI លើសកូតា សូមប្តូរទៅរបៀប «បង្កប់រូបភាពដើមក្នុង Word» ដើម្បីទាញយកឯកសារ Word (.docx) ដោយជោគជ័យ ១០០% ភ្លាមៗ!'
+                        : 'If running on GitHub Pages or AI quota is limited, switch to "Embed Original Images" mode to compile into Word (.docx) with 100% success rate!'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setConversionMode('embed')}
+                  className="w-full py-1.5 px-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>{isKm ? '👉 ប្តូរទៅរបៀប «បង្កប់រូបភាពក្នុង Word» ភ្លាមៗ (១០០% ជោគជ័យ)' : '👉 Switch to Embed Mode (100% Success)'}</span>
+                </button>
               </div>
             )}
 
@@ -807,6 +902,29 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Main Export Excel Button */}
+              {conversionMode === 'ocr' && (
+                <button
+                  id="btn-export-image-to-excel"
+                  onClick={handleExportExcel}
+                  disabled={isExportingExcel || !rawEditableText.trim()}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  title={isKm ? 'ទាញយកតារាង និងទិន្នន័យជាឯកសារ Excel (.xlsx)' : 'Export extracted tables & data to Excel (.xlsx)'}
+                >
+                  {isExportingExcel ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>{isKm ? 'កំពុងបង្កើត Excel...' : 'Creating Excel...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>{isKm ? 'ទាញយកជា Excel (.xlsx)' : 'Download Excel (.xlsx)'}</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
@@ -862,6 +980,7 @@ export const ImageToWordPanel: React.FC<ImageToWordPanelProps> = ({
                       options={wordOptions}
                       onOptionsChange={(newOpts) => setWordOptions((prev) => ({ ...prev, ...newOpts }))}
                       onDownloadDocx={handleExportWord}
+                      onDownloadExcel={handleExportExcel}
                       isDownloading={isExportingWord}
                     />
                   ) : (

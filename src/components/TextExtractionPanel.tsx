@@ -26,6 +26,7 @@ import {
   StopCircle,
   SlidersHorizontal,
   Sliders,
+  FileSpreadsheet,
 } from 'lucide-react';
 import type { Language } from '../types';
 import { extractNativePageText, renderPageToCanvas, triggerDownload } from '../utils/pdfHelper';
@@ -35,6 +36,7 @@ import {
   WordTableStyle,
   WordLayoutPreset,
 } from '../utils/docxExport';
+import { exportToExcelFile, extractMarkdownTables } from '../utils/excelExport';
 import { WordPreview } from './WordPreview';
 import { WordPageSetupModal } from './WordPageSetupModal';
 
@@ -135,8 +137,14 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
     };
   });
   const [isExportingWord, setIsExportingWord] = useState<boolean>(false);
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false);
   const [showWordSettingsModal, setShowWordSettingsModal] = useState<boolean>(false);
   const [showPageSetupModal, setShowPageSetupModal] = useState<boolean>(false);
+
+  // Auto-detect tables in current extracted text for quick count & export
+  const detectedTables = React.useMemo(() => {
+    return extractMarkdownTables(extractedText);
+  }, [extractedText]);
 
   // Synchronize targetPage with parent currentPage initially
   useEffect(() => {
@@ -560,6 +568,50 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
     }
   };
 
+  // Download Microsoft Excel spreadsheet (.xlsx) with preserved tables and structured data
+  const handleDownloadExcel = (forceAllPages = false) => {
+    const isAll = forceAllPages || viewScope === 'all';
+    if (!extractedText && !isAll) return;
+    setIsExportingExcel(true);
+    try {
+      const cleanDocTitle = fileName.replace(/\.pdf$/i, '');
+      let excelResult;
+
+      if (isAll && totalPages > 1) {
+        // Collect text across all generated pages
+        const pagesList: Array<{ pageNumber: number; text: string }> = [];
+        for (let p = 1; p <= totalPages; p++) {
+          const pText = activeMode === 'ai' ? (pageAiCache[p] || '') : (pageNativeCache[p] || '');
+          if (pText) {
+            pagesList.push({ pageNumber: p, text: pText });
+          }
+        }
+        if (pagesList.length === 0 && extractedText) {
+          pagesList.push({ pageNumber: targetPage, text: extractedText });
+        }
+        const exportFileName = `${cleanDocTitle}_all_pages.xlsx`;
+        excelResult = exportToExcelFile(pagesList, exportFileName);
+      } else {
+        const exportFileName = `${cleanDocTitle}_page_${targetPage}.xlsx`;
+        excelResult = exportToExcelFile(extractedText, exportFileName);
+      }
+
+      triggerDownload(
+        excelResult.blob,
+        excelResult.fileName,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+
+      setShowSuccessBanner(true);
+      setTimeout(() => setShowSuccessBanner(false), 5000);
+    } catch (err: any) {
+      console.error('Excel export error:', err);
+      setErrorMessage(err.message || 'Failed to export Excel spreadsheet');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   // Download text file
   const handleDownloadTxt = () => {
     if (!extractedText) return;
@@ -659,6 +711,35 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
                 ? isKm ? `ទាញយក Word គ្រប់ ${totalPages} ទំព័រ` : `Download All ${totalPages} Pages`
                 : isKm ? 'ទាញយកជា Word (.docx)' : 'Export to Word (.docx)'}
             </span>
+          </button>
+
+          {/* Export to Excel (.xlsx) */}
+          <button
+            id="btn-export-excel"
+            onClick={() => handleDownloadExcel(false)}
+            disabled={!extractedText || isExportingExcel}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 rounded-xl shadow-xs transition-all cursor-pointer"
+            title={
+              viewScope === 'all'
+                ? isKm ? `ទាញយកទាំង ${totalPages} ទំព័រជាឯកសារ Excel (.xlsx)` : `Download all ${totalPages} pages as Excel (.xlsx)`
+                : isKm ? 'ទាញយកតារាង និងទិន្នន័យជាឯកសារ Excel (.xlsx)' : 'Download tables & data as Excel (.xlsx)'
+            }
+          >
+            <div className="w-4 h-4 rounded bg-white text-emerald-700 flex items-center justify-center font-bold text-[10px] leading-none">
+              X
+            </div>
+            <span>
+              {isExportingExcel
+                ? isKm ? 'កំពុងបង្កើត Excel...' : 'Creating Excel...'
+                : viewScope === 'all'
+                ? isKm ? `ទាញយក Excel គ្រប់ ${totalPages} ទំព័រ` : `All Pages Excel (.xlsx)`
+                : isKm ? 'ទាញយកជា Excel (.xlsx)' : 'Export to Excel (.xlsx)'}
+            </span>
+            {detectedTables.length > 0 && (
+              <span className="hidden sm:inline-flex text-[10px] bg-emerald-900/60 text-emerald-100 px-1.5 py-0.2 rounded-full font-mono font-bold">
+                {detectedTables.length} {isKm ? 'តារាង' : 'tbl'}
+              </span>
+            )}
           </button>
 
           {/* Copy Text */}
@@ -779,6 +860,30 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
                       : isKm ? `⚡ Generate ម្ដងគ្រប់ ${totalPages} ទំព័រ` : `⚡ Generate All ${totalPages} Pages`}
                   </span>
                 </button>
+              )}
+
+              {/* Quick Batch Export Actions when pages are generated */}
+              {generatedAiCount > 0 && (
+                <div className="mt-2.5 pt-2.5 border-t border-blue-800/60 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleDownloadWord(true)}
+                    disabled={isExportingWord}
+                    className="py-1.5 px-2 bg-blue-800/80 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 border border-blue-600/40"
+                    title={isKm ? 'ទាញយកគ្រប់ទំព័រជា Word (.docx)' : 'Export all pages to Word'}
+                  >
+                    <Download className="w-3 h-3 text-blue-200" />
+                    <span>Word (.docx)</span>
+                  </button>
+                  <button
+                    onClick={() => handleDownloadExcel(true)}
+                    disabled={isExportingExcel}
+                    className="py-1.5 px-2 bg-emerald-700/80 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 border border-emerald-500/40 shadow-2xs"
+                    title={isKm ? 'ទាញយកគ្រប់ទំព័រជា Excel (.xlsx)' : 'Export all pages to Excel'}
+                  >
+                    <FileSpreadsheet className="w-3 h-3 text-emerald-200" />
+                    <span>Excel (.xlsx)</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1423,6 +1528,7 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
                   options={wordOptions}
                   onOptionsChange={(newOpts) => setWordOptions({ ...wordOptions, ...newOpts })}
                   onDownloadDocx={() => handleDownloadWord(false)}
+                  onDownloadExcel={() => handleDownloadExcel(false)}
                   isDownloading={isExportingWord}
                 />
               </div>
@@ -1436,6 +1542,7 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
                 options={wordOptions}
                 onOptionsChange={(newOpts) => setWordOptions({ ...wordOptions, ...newOpts })}
                 onDownloadDocx={() => handleDownloadWord(false)}
+                onDownloadExcel={() => handleDownloadExcel(false)}
                 isDownloading={isExportingWord}
               />
             )}

@@ -292,19 +292,31 @@ export const TextExtractionPanel: React.FC<TextExtractionPanelProps> = ({
       }
     } catch (err: any) {
       console.error('AI OCR error:', err);
-      if (err?.code === 'NO_GEMINI_API_KEY' || err?.message === 'NO_GEMINI_API_KEY') {
-        setIsApiKeyModalOpen(true);
+      const rawMsg = err?.message || String(err);
+      const isRateLimit =
+        err?.code === 'RATE_LIMIT' ||
+        rawMsg.includes('429') ||
+        rawMsg.includes('RESOURCE_EXHAUSTED') ||
+        rawMsg.includes('quota') ||
+        rawMsg.includes('exceeded your current quota');
+      const isNoKey =
+        err?.code === 'NO_GEMINI_API_KEY' ||
+        rawMsg.includes('NO_GEMINI_API_KEY') ||
+        rawMsg.includes('API key not valid') ||
+        rawMsg.includes('API_KEY_INVALID');
+
+      if (isRateLimit) {
         setErrorMessage(
           isKm
-            ? 'នៅលើ GitHub Pages៖ សូមភ្ជាប់ Gemini API Key ឥតគិតថ្លៃដើម្បីប្រើប្រាស់ AI OCR ឬចុចលើ «ស្រង់អក្សរផ្ទាល់ពី PDF (Native)» ដើម្បីបម្លែងជា Word & Excel ដោយឥតគិតថ្លៃ ១០០%។'
-            : 'On GitHub Pages: Please connect a free Gemini API Key or switch to Native PDF extraction for 100% free conversion.'
+            ? 'កម្រិត AI Free Tier បានដល់កម្រិតកំណត់ (Rate Limit / Quota 429)។ លោកអ្នកអាចចុចប្តូរទៅ «ស្រង់អក្សរផ្ទាល់ពី PDF (Native)» ខាងលើ ដើម្បីបម្លែងជា Word & Excel បាន ១០០% ភ្លាមៗដោយគ្មានដែនកំណត់!'
+            : 'AI Free Tier rate limit reached (429). You can switch to "Native PDF Extraction" above to convert to Word & Excel immediately without any limits!'
         );
-      } else if (err?.code === 'RATE_LIMIT') {
+      } else if (isNoKey) {
         setIsApiKeyModalOpen(true);
         setErrorMessage(
           isKm
-            ? `កម្រិត AI Free Tier បានពេញបណ្តោះអាសន្ន (${err.retrySeconds || 25} វិនាទី)។ សូមរង់ចាំបន្តិច រួចចុចព្យាយាមម្តងទៀត ឬភ្ជាប់ Gemini API Key ផ្ទាល់ខ្លួនរបស់អ្នក (ឥតគិតថ្លៃ)។`
-            : `AI Free Tier Rate limit reached (${err.retrySeconds || 25}s). Please wait a moment or enter your own free Gemini API key.`
+            ? 'នៅលើ GitHub Pages / Vercel៖ សូមភ្ជាប់ Gemini API Key ឥតគិតថ្លៃដើម្បីប្រើប្រាស់ AI OCR ឬចុចលើ «ស្រង់អក្សរផ្ទាល់ពី PDF (Native)» ដើម្បីបម្លែងជា Word & Excel ដោយឥតគិតថ្លៃ ១០០%។'
+            : 'Please connect a free Gemini API Key or switch to Native PDF extraction for 100% free conversion.'
         );
       } else {
         setErrorMessage(err.message || 'Error communicating with AI OCR engine');
